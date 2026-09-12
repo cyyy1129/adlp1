@@ -3756,6 +3756,91 @@ a:hover {
   box-shadow: 0 8px 22px rgba(92, 65, 35, 0.055);
 }
 
+.profile-checkin-panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 19px;
+  box-shadow: 0 8px 22px rgba(92, 65, 35, 0.055);
+}
+
+.profile-checkin-heading h2 {
+  margin-top: 0.2rem;
+  color: #3e2b1e;
+  font-size: clamp(1.2rem, 5vw, 1.45rem);
+  letter-spacing: -0.03em;
+}
+
+.profile-checkin-heading > div > p:last-child {
+  margin-top: 0.3rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.profile-checkin-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  color: #685849;
+  background: #fff8f0;
+  border: 1px solid #f0dfca;
+  border-radius: 13px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.profile-checkin-empty .loading-spinner {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.profile-checkin-session {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.8rem 0.85rem;
+  color: #5d4027;
+  background: #fff7ed;
+  border: 1px solid #f0dfca;
+  border-radius: 13px;
+}
+
+.profile-checkin-session strong { font-size: 0.88rem; }
+.profile-checkin-session span { color: #806a55; font-size: 0.7rem; }
+
+.profile-checkin-form .checkin-card,
+.profile-checkin-form .checkin-sold-card {
+  padding: 1rem;
+  background: #fffdf9;
+  border-color: #eee1d2;
+  border-radius: 15px;
+}
+
+.profile-checkin-form .checkin-card h3 {
+  margin-top: 0.18rem;
+  color: #3e2b1e;
+  font-size: 0.96rem;
+}
+
+.profile-checkin-form .checkin-card > p:not(.planning-confirmation-label) {
+  margin: 0.3rem 0 0.75rem;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+}
+
+.profile-checkin-form .checkin-sold-card {
+  background: #f1f9f0;
+  border-color: #d2e8d4;
+}
+
+.profile-checkin-form .checkin-sold-card > strong { color: #197543; }
+.profile-checkin-form .checkin-crowd-selected { color: #8b3602; }
+
 .account-summary-heading {
   display: flex;
   align-items: flex-start;

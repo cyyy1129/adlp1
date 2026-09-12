@@ -6,7 +6,7 @@ The completed-session flow is:
 Selling plan → demand estimate → selling result → completed plan → future historical baseline
 ```
 
-`DailyCheckin` records the confirmed/corrected location, prepared quantity, leftovers, unit, calculated non-negative `estimated_sold_quantity`, and crowd level. Saving uses an upsert keyed by `user_id,selling_plan_id`, so refreshes and retries update the same record instead of adding duplicates.
+The Profile page contains the daily check-in for a selected selling session. It records the confirmed/corrected location, prepared quantity, leftovers, unit, calculated non-negative `estimated_sold_quantity`, and crowd level. Saving uses an upsert keyed by `user_id,selling_plan_id`, so refreshes and retries update the same record instead of adding duplicates.
 
 The small additive migration at `supabase/migrations/20260912000000_daily_checkin_integrity.sql` must be applied before deployment. It adds `estimated_sold_quantity`, creates the unique index required by the upsert, and enables a user-owned RLS policy for daily check-ins.
 

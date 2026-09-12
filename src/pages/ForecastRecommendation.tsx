@@ -304,7 +304,7 @@ export default function ForecastRecommendation() {
           <p className="planning-confirmation-label">After you sell</p>
           <h2>Record what happened</h2>
           <p>Save prepared quantity, leftovers, and crowd level so future estimates can use this completed session.</p>
-          <Link to={`/plans/${plan.id}/check-in`}><Button size="lg">Record selling result</Button></Link>
+          <Link to={`/profile?checkinPlan=${encodeURIComponent(plan.id)}#daily-checkin`}><Button size="lg">Record selling result</Button></Link>
         </section>
       </main>
     </div>

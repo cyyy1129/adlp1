@@ -3,10 +3,11 @@
 // demo badge only; it does not claim measured impact.
 // ============================================================
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import Button from '../components/Button';
+import DailyCheckinPanel from '../components/profile/DailyCheckinPanel';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { getDemoSustainabilityProgress, hasDemoSustainabilityBadge } from '../lib/demoMetrics';
@@ -33,14 +34,21 @@ export default function Profile() {
   const { user, profile, logout, refreshProfile, supabaseConfigured } = useAuth();
   const { lang, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const checkinPlanId = searchParams.get('checkinPlan');
   const [notice, setNotice] = useState<string | null>(null);
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showCheckin, setShowCheckin] = useState(Boolean(checkinPlanId));
   const [sameLocationConfirmed, setSameLocationConfirmed] = useState(false);
 
   const sellerName = `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || profile?.username || 'Bleu seller';
   const selectedLanguage = profile?.preferred_language === 'ms' ? 'Bahasa Melayu' : 'English';
   const sustainabilityProgress = getDemoSustainabilityProgress();
+
+  useEffect(() => {
+    if (checkinPlanId) setShowCheckin(true);
+  }, [checkinPlanId]);
 
   async function handleLanguage() {
     const nextLanguage = lang === 'en' ? 'ms' : 'en';
@@ -137,6 +145,10 @@ export default function Profile() {
             <span className="account-menu-icon" aria-hidden="true">S</span>
             <div><strong>Summary</strong><small>{showSummary ? 'Hide check-in reflection' : 'View check-in reflection'}</small></div><ArrowIcon />
           </button>
+          <button type="button" className="account-menu-row" onClick={() => setShowCheckin(current => !current)} aria-expanded={showCheckin} aria-controls="daily-checkin">
+            <span className="account-menu-icon" aria-hidden="true">D</span>
+            <div><strong>Daily check-in</strong><small>{showCheckin ? 'Hide selling result form' : 'Record a completed selling result'}</small></div><ArrowIcon />
+          </button>
           <button type="button" className="account-menu-row" onClick={() => void handleLanguage()} disabled={savingLanguage}>
             <span className="account-menu-icon" aria-hidden="true">A</span>
             <div><strong>Language</strong><small>{savingLanguage ? 'Saving language...' : selectedLanguage}</small></div><ArrowIcon />
@@ -154,6 +166,8 @@ export default function Profile() {
             <div><strong>Log out</strong><small>Sign out from this device</small></div><ArrowIcon />
           </button>
         </section>
+
+        {showCheckin && <DailyCheckinPanel planId={checkinPlanId} />}
 
         {showSummary && (
           <section className="account-summary-panel" id="daily-checkin-summary" aria-labelledby="daily-checkin-summary-title">
