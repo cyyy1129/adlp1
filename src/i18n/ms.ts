@@ -6,7 +6,7 @@ import type { TranslationKeys } from './en';
 
 const ms: TranslationKeys = {
   // Common
-  appName: 'Bazaar Buddy',
+  appName: 'Bleu',
   tagline: 'Perancangan permintaan pintar untuk peniaga F&B mikro',
   loading: 'Memuatkan...',
   save: 'Simpan',

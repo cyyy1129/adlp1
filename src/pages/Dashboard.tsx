@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import Button from '../components/Button';
 import { useAuth } from '../hooks/useAuth';
+import { DEMO_METRICS, DEMO_WEATHER_CONTEXT, getDemoSustainabilityProgress } from '../lib/demoMetrics';
 
 const DEMO_HISTORY = [
   { date: '12 Sep', food: 'Nasi ayam', detail: '118 portions sold' },
@@ -22,13 +23,20 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const sellerName = profile?.first_name?.trim() || profile?.username?.trim() || 'Pak Ali';
   const greeting = profile?.preferred_language === 'ms' ? 'Selamat pagi' : 'Good morning';
+  const sustainabilityProgress = getDemoSustainabilityProgress();
+  const savedBazaar = profile?.default_location_name?.trim() || null;
+  const savedFood = profile?.custom_food_name?.trim()
+    || profile?.food_categories?.find(category => category !== 'Others')?.trim()
+    || null;
+  const sellingLocation = savedBazaar ?? DEMO_WEATHER_CONTEXT.fallbackLocation;
+  const sellingFood = savedFood ?? 'Your food';
 
   return (
     <div className="dashboard-page demo-dashboard-page app-page-with-nav">
       <header className="dashboard-header demo-dashboard-header">
-        <button type="button" className="demo-brand" onClick={() => navigate('/dashboard')} aria-label="Bazaar Buddy dashboard">
-          <span className="demo-brand-mark" aria-hidden="true">BB</span>
-          <span>Bazaar Buddy</span>
+        <button type="button" className="demo-brand" onClick={() => navigate('/dashboard')} aria-label="Bleu dashboard">
+          <span className="demo-brand-mark" aria-hidden="true">BL</span>
+          <span>Bleu</span>
         </button>
         <button type="button" className="demo-dashboard-account" onClick={() => navigate('/profile')}>
           <span className="demo-dashboard-avatar" aria-hidden="true">{getInitial(sellerName)}</span>
@@ -47,7 +55,7 @@ export default function Dashboard() {
           <div className="demo-forecast-card-top">
             <div>
               <p className="demo-card-kicker">NEXT SELLING SESSION</p>
-              <h2 id="demo-forecast-title">Nasi lemak at Kampung Baru</h2>
+              <h2 id="demo-forecast-title">{sellingFood} at {sellingLocation}</h2>
               <p>Saturday, 5:00 PM - 10:00 PM</p>
             </div>
             <span className="demo-preview-chip">Preview</span>
@@ -55,10 +63,10 @@ export default function Dashboard() {
 
           <div className="demo-forecast-body">
             <div className="demo-forecast-number">
-              <span>Recommended preparation</span>
-              <strong>124</strong>
-              <b>portions</b>
-              <small>Expected demand: 112-128 portions</small>
+              <span>Recommended preparation range</span>
+              <strong className="demo-forecast-range-value">{DEMO_METRICS.preparationRange.minimum}-{DEMO_METRICS.preparationRange.maximum}</strong>
+              <b>{DEMO_METRICS.preparationRange.unit}</b>
+              <small>Prepare within this range for the session.</small>
             </div>
             <div className="demo-demand-chart" aria-hidden="true">
               <svg viewBox="0 0 260 126" preserveAspectRatio="none">
@@ -75,15 +83,51 @@ export default function Dashboard() {
           </div>
         </section>
 
+        <section className="demo-weather-card" aria-labelledby="demo-weather-title">
+          <span className="demo-weather-icon" aria-hidden="true">☀</span>
+          <div className="demo-weather-copy">
+            <p className="demo-card-kicker">WEATHER — DEMO CONTEXT</p>
+            <h2 id="demo-weather-title">Weather for {sellingLocation}</h2>
+
+          </div>
+          <div className="demo-weather-stat" aria-label={`Demo weather: ${DEMO_WEATHER_CONTEXT.condition}, ${DEMO_WEATHER_CONTEXT.temperature}`}>
+            <strong>{DEMO_WEATHER_CONTEXT.temperature}</strong>
+            <span>{DEMO_WEATHER_CONTEXT.condition}</span>
+          </div>
+          <div className="demo-weather-footer">
+            <span>Rain chance <b>{DEMO_WEATHER_CONTEXT.rainChance}</b></span>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/question?mode=change')}>Change bazaar</Button>
+          </div>
+        </section>
+
         <section className="demo-dashboard-insights" aria-label="Preview business insights">
           <article className="demo-insight-card demo-insight-sales">
             <span className="demo-insight-icon" aria-hidden="true">RM</span>
-            <div><small>Expected sales</small><strong>RM184</strong><p>Preview for this session</p></div>
+            <div><small>How much cost you have saved</small><strong>RM{DEMO_METRICS.potentialSavings}</strong></div>
           </article>
-          <article className="demo-insight-card demo-insight-waste">
-            <span className="demo-insight-icon" aria-hidden="true">+</span>
-            <div><small>Potential waste avoided</small><strong>1.8 kg</strong><p>Demo sustainability insight</p></div>
+          <article className="demo-insight-card demo-insight-accuracy">
+            <span className="demo-insight-icon" aria-hidden="true">%</span>
+            <div><small>Past forecast accuracy</small><strong>{DEMO_METRICS.pastForecastAccuracy}%</strong><p>Based on past history</p></div>
           </article>
+        </section>
+
+        <section className="demo-sustainability-card" aria-labelledby="sustainability-progress-title">
+          <div className="demo-sustainability-icon" aria-hidden="true">S</div>
+          <div className="demo-sustainability-copy">
+            <p className="demo-card-kicker">SUSTAINABILITY</p>
+            <h2 id="sustainability-progress-title">Sustainability progress</h2>
+            <p>{DEMO_METRICS.potentialWasteAvoidedKg} kg potential waste avoided. Goal reached - your badge is unlocked in Profile.</p>
+          </div>
+          <strong>{sustainabilityProgress}%</strong>
+          <div
+            className="demo-sustainability-progress"
+            role="progressbar"
+            aria-label="Demo sustainability progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={sustainabilityProgress}
+            aria-valuetext={`${sustainabilityProgress}% complete`}
+          ><span style={{ width: `${sustainabilityProgress}%` }} /></div>
         </section>
 
         <section className="demo-history-section" aria-labelledby="demo-history-title">

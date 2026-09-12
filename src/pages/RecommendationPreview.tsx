@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import Button from '../components/Button';
 import { useAuth } from '../hooks/useAuth';
+import { DEMO_METRICS } from '../lib/demoMetrics';
 
 export default function RecommendationPreview() {
   const { profile } = useAuth();
@@ -16,9 +17,9 @@ export default function RecommendationPreview() {
   return (
     <div className="recommendation-preview-page app-page-with-nav">
       <header className="dashboard-header recommendation-preview-header">
-        <button type="button" className="demo-brand" onClick={() => navigate('/dashboard')} aria-label="Back to Bazaar Buddy dashboard">
-          <span className="demo-brand-mark" aria-hidden="true">BB</span>
-          <span>Bazaar Buddy</span>
+        <button type="button" className="demo-brand" onClick={() => navigate('/dashboard')} aria-label="Back to Bleu dashboard">
+          <span className="demo-brand-mark" aria-hidden="true">BL</span>
+          <span>Bleu</span>
         </button>
         <button type="button" className="recommendation-preview-close" onClick={() => navigate('/dashboard')}>Dashboard</button>
       </header>
@@ -41,9 +42,9 @@ export default function RecommendationPreview() {
 
         <section className="recommendation-preview-result" aria-labelledby="preview-result-title">
           <span className="demo-preview-chip">Demo recommendation</span>
-          <p>Recommended preparation</p>
-          <h2 id="preview-result-title">124 <span>portions</span></h2>
-          <div className="recommendation-preview-range"><span>Expected demand</span><strong>112-128 portions</strong></div>
+          <p>Recommended preparation range</p>
+          <h2 id="preview-result-title" className="recommendation-preview-range-value">{DEMO_METRICS.preparationRange.minimum}-{DEMO_METRICS.preparationRange.maximum} <span>{DEMO_METRICS.preparationRange.unit}</span></h2>
+          <div className="recommendation-preview-range"><span>Planning guidance</span><strong>Prepare within this range</strong></div>
           <div className="recommendation-preview-confidence"><span>Confidence</span><b>Preview only</b></div>
         </section>
 
@@ -57,7 +58,7 @@ export default function RecommendationPreview() {
         </section>
 
         <section className="recommendation-preview-context" aria-label="Preview context">
-          <article><span className="recommendation-context-icon" aria-hidden="true">W</span><div><strong>Weather</strong><small>Clear and warm - mock context</small></div></article>
+          <article><span className="recommendation-context-icon" aria-hidden="true">W</span><div><strong>Weather</strong><small>Clear and warm</small></div></article>
           <article><span className="recommendation-context-icon" aria-hidden="true">E</span><div><strong>Nearby events</strong><small>No live event lookup in this demo</small></div></article>
         </section>
 

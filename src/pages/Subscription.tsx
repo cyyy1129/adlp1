@@ -50,7 +50,7 @@ export default function Subscription() {
         </header>
 
         <section className="subscription-hero" aria-labelledby="subscription-title" style={{ textAlign: 'center', maxWidth: '600px', marginBottom: '40px' }}>
-          <p className="planning-eyebrow" style={{ color: '#F97316', fontSize: '0.875rem', fontWeight: 'bold', letterSpacing: '0.05em', textTransform: 'uppercase' }}>WELCOME TO BAZAAR BUDDY</p>
+          <p className="planning-eyebrow" style={{ color: '#F97316', fontSize: '0.875rem', fontWeight: 'bold', letterSpacing: '0.05em', textTransform: 'uppercase' }}>WELCOME TO BLEU</p>
           <h2 id="subscription-title" style={{ fontSize: '1.75rem', fontWeight: 'bold', margin: '12px 0' }}>Choose how you would like to get started</h2>
           <p style={{ color: '#9CA3AF' }}>Start with a free month, or explore flexible credit packages. Payments and credits are preview-only for this MVP.</p>
           {needsVerification && <p className="subscription-verification" role="status">Check your email to verify your account, then continue to log in.</p>}
@@ -71,7 +71,7 @@ export default function Subscription() {
               <span className="subscription-badge" style={{ background: '#78350F', color: '#FDBA74', padding: '4px 12px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 'bold' }}>BEST WAY TO START</span>
               <p className="trial-icon" aria-hidden="true" style={{ fontSize: '2rem', color: '#F97316', margin: '16px 0' }}>✦</p>
               <h2 id="trial-title" style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '12px' }}>1 Month Free Trial</h2>
-              <p style={{ color: '#9CA3AF', marginBottom: '24px' }}>Try Bazaar Buddy for one month and see how simple selling-session planning can be.</p>
+              <p style={{ color: '#9CA3AF', marginBottom: '24px' }}>Try Bleu for one month and see how simple selling-session planning can be.</p>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '12px', color: '#E5E7EB' }}>
                 <li>✓ Plan your selling sessions</li>
                 <li>✓ Capture your results</li>

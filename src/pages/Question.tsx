@@ -2,7 +2,7 @@
 // One-shot voice/text seller setup page (Demo Safe Edition)
 // ============================================================
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../components/Button';
 import Card from '../components/Card';
@@ -13,13 +13,14 @@ import VoiceInput from '../components/planning/VoiceInput';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import {
+  EMPTY_DETAILS,
   extractSellingSetupFollowUp,
   getMissingSetupFields,
   mergeSellingSetup,
   type SellingSetupDetails,
   type SellingSetupField,
 } from '../services/ai/sellingSetupExtraction';
-import { getSellerSetup, hasSetup, inferFoodCategory, saveSellerSetup } from '../services/sellingSetupService';
+import { inferFoodCategory, saveSellerSetup } from '../services/sellingSetupService';
 
 const UNITS = ['packages', 'portions', 'bowls', 'pieces', 'sets', 'kg', 'litres', 'other'] as const;
 
@@ -33,9 +34,17 @@ function humanizeFields(fields: SellingSetupField[]): string {
   return `${values.slice(0, -1).join(', ')}, and ${values.at(-1)}`;
 }
 
-function locationMatches(current: string | null, next: string | null): boolean {
-  const normalise = (value: string | null) => (value ?? '').toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  return Boolean(current && next && normalise(current) === normalise(next));
+function normaliseUnit(value: string | null | undefined): string | null | undefined {
+  if (!value) return value;
+  const unit = value.trim().toLowerCase();
+  if (['pack', 'packs', 'package', 'packages', 'bungkus', 'pek'].includes(unit)) return 'packages';
+  if (['portion', 'portions', 'serving', 'servings'].includes(unit)) return 'portions';
+  if (['bowl', 'bowls', 'mangkuk'].includes(unit)) return 'bowls';
+  if (['piece', 'pieces', 'pc', 'pcs', 'biji'].includes(unit)) return 'pieces';
+  if (['set', 'sets'].includes(unit)) return 'sets';
+  if (['kilogram', 'kilograms'].includes(unit)) return 'kg';
+  if (['litre', 'liter', 'liters'].includes(unit)) return 'litres';
+  return unit;
 }
 
 export default function Question() {
@@ -45,64 +54,19 @@ export default function Question() {
   const [searchParams] = useSearchParams();
   const changeLocation = searchParams.get('mode') === 'change';
 
-  // 🏆 给予默认的 Demo 销售数据，防止表单空空如也
-  const [draft, setDraft] = useState<SellingSetupDetails>({
-    location_name: 'Bazar Ramadan Kampung Baru',
-    food_name: 'Drinks',
-    quantity: 110,
-    unit: 'cups',
-    selling_price: 3.00,
-    estimated_cost: 1.20,
-    planned_date: '2026-09-12',
-  });
+  const [draft, setDraft] = useState<SellingSetupDetails>(EMPTY_DETAILS);
 
-  const baseLocation = { name: 'Bazar Ramadan Kampung Baru', latitude: 3.159, longitude: 101.702 };
   const [pinnedLocation, setPinnedLocation] = useState<{ name: string | null; latitude: number | null; longitude: number | null }>({ name: null, latitude: null, longitude: null });
-  const [loading, setLoading] = useState(false); // 设为 false 避免转圈
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [answer, setAnswer] = useState('');
-  const [transcript, setTranscript] = useState<string | null>('I’ll sell drinks at Bazar Ramadan Kampung Baru this Saturday. I’ll prepare around 110 cups.');
+  const [transcript, setTranscript] = useState<string | null>(null);
   const [followUp, setFollowUp] = useState<string | null>(null);
-  const [hasAnswered, setHasAnswered] = useState(true); // 默认设为已回答，确保按钮可点
+  const [hasAnswered, setHasAnswered] = useState(false);
   const canReuseSavedDetails = false;
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const focusedFirstSetup = !changeLocation && !profile?.voice_setup_completed_at;
-
-  useEffect(() => {
-    const userId = user?.id;
-    if (typeof userId !== 'string') {
-      setLoading(false);
-      return;
-    }
-    let current = true;
-    async function load(currentUserId: string) {
-      setLoading(true);
-      try {
-        const result = await getSellerSetup(currentUserId);
-        if (!current) return;
-        const setup = result.data;
-        if (setup && hasSetup(setup)) {
-          setDraft({
-            location_name: setup.location_name ?? 'Bazar Ramadan Kampung Baru',
-            food_name: setup.food_name ?? 'Drinks',
-            quantity: setup.quantity ?? 110,
-            unit: setup.unit ?? 'cups',
-            selling_price: setup.selling_price ?? 3.00,
-            estimated_cost: setup.estimated_cost ?? 1.20,
-            planned_date: null,
-          });
-        }
-      } catch (err) {
-        console.warn('Demo mode fallback for setup loading', err);
-      } finally {
-        if (current) setLoading(false);
-      }
-    }
-    void load(userId);
-    return () => { current = false; };
-  }, [changeLocation, profile?.default_latitude, profile?.default_location_name, profile?.default_longitude, user]);
 
   function applyAnswer(raw: string) {
     const value = raw.trim();
@@ -113,8 +77,9 @@ export default function Question() {
       ? getMissingSetupFields(draft).filter(field => field === 'location')
       : getMissingSetupFields(draft);
     const extracted = extractSellingSetupFollowUp(value, fieldsRequested);
+    const normalisedExtraction = { ...extracted, unit: normaliseUnit(extracted.unit) };
     setDraft(previous => {
-      const next = mergeSellingSetup(previous, extracted);
+      const next = mergeSellingSetup(previous, normalisedExtraction);
       const missing = getMissingSetupFields(next);
       const required = changeLocation && canReuseSavedDetails ? missing.filter(field => field === 'location') : missing;
       setFollowUp(required.length > 0 ? `I still need your ${humanizeFields(required)}. Please say or type just that information.` : null);
@@ -138,34 +103,45 @@ export default function Question() {
   }
 
   async function save() {
+    if (!hasAnswered) {
+      setError('Please type or record your selling details before continuing.');
+      return;
+    }
+
+    const missing = getMissingSetupFields(draft);
+    if (missing.length > 0) {
+      setFollowUp(`I still need your ${humanizeFields(missing)}. Please add it before continuing.`);
+      setError('Please complete the missing selling details before saving.');
+      return;
+    }
+
     setSaving(true);
+    setError(null);
     try {
       if (user && supabaseConfigured) {
-        const isSameLocation = locationMatches(baseLocation.name, draft.location_name);
-        const hasPinnedLocation = locationMatches(pinnedLocation.name, draft.location_name);
         await saveSellerSetup(user.id, {
-          location_name: draft.location_name ?? 'Bazar Ramadan Kampung Baru',
-          latitude: hasPinnedLocation ? pinnedLocation.latitude : isSameLocation ? baseLocation.latitude : 3.159,
-          longitude: hasPinnedLocation ? pinnedLocation.longitude : isSameLocation ? baseLocation.longitude : 101.702,
-          food_name: draft.food_name ?? 'Drinks',
-          food_category: inferFoodCategory(draft.food_name ?? 'Drinks', profile?.food_categories),
-          quantity: draft.quantity ?? 110,
-          unit: draft.unit ?? 'cups',
-          selling_price: draft.selling_price ?? 3.00,
-          estimated_cost: draft.estimated_cost ?? 1.20,
+          location_name: draft.location_name!,
+          latitude: pinnedLocation.name === draft.location_name ? pinnedLocation.latitude : null,
+          longitude: pinnedLocation.name === draft.location_name ? pinnedLocation.longitude : null,
+          food_name: draft.food_name!,
+          food_category: inferFoodCategory(draft.food_name!, profile?.food_categories),
+          quantity: draft.quantity!,
+          unit: draft.unit!,
+          selling_price: draft.selling_price!,
+          estimated_cost: draft.estimated_cost!,
         });
         await refreshProfile();
       }
     } catch (err) {
-      console.warn('Backend save bypassed for demo, proceeding to dashboard', err);
+      console.warn('Could not save seller setup', err);
+      setError('We could not save your details right now. Please try again.');
+      return;
     } finally {
       setSaving(false);
-      // 🏆 核心优化：保存成功后直接平滑跳转到主页 Dashboard 或任意可用路由！
-      navigate('/dashboard', { replace: true });
     }
-  }
 
-  if (loading) return <div className="page-center"><div className="loading-spinner" /></div>;
+    navigate('/dashboard', { replace: true });
+  }
 
   const primaryPrompt = changeLocation && canReuseSavedDetails
     ? 'Where are you selling today? You can also include any change to your food or preparation quantity.'
@@ -178,7 +154,7 @@ export default function Question() {
     <div className={`question-page ${focusedFirstSetup ? 'question-page-focused' : 'app-page-with-nav'}`}>
       <main className="question-shell">
         <p className="planning-eyebrow">{focusedFirstSetup ? 'FIRST VOICE SETUP' : 'VOICE INPUT'}</p>
-        <h1>{changeLocation ? 'Update today’s selling place' : focusedFirstSetup ? 'Tell Bazaar Buddy about your first session' : 'Update your selling details'}</h1>
+        <h1>{changeLocation ? 'Update today’s selling place' : focusedFirstSetup ? 'Tell Bleu about your first session' : 'Update your selling details'}</h1>
         <p className="question-intro">{visiblePrompt}</p>
 
         <Card variant="glass" padding="lg" className="question-card">
@@ -187,33 +163,29 @@ export default function Question() {
             <div><strong>{processing ? 'Understanding your answer…' : hasAnswered ? 'Speak only the missing detail' : 'Speak one natural answer'}</strong><span>Voice is optional — you can always type instead.</span></div>
           </div>
           <div className="question-answer-form">
-            <textarea className="setup-answer-input" aria-label="Your voice or text answer" value={answer} onChange={event => setAnswer(event.target.value)} rows={4} placeholder="e.g. I’ll sell drinks at Kampung Baru this Saturday. I’ll prepare around 110 cups." />
+            <textarea className="setup-answer-input" aria-label="Your voice or text answer" value={answer} onChange={event => setAnswer(event.target.value)} rows={4} placeholder="e.g. I’ll sell nasi lemak at Kampung Baru this Saturday. I’ll prepare around 110 packs, sell each for RM8, and my cost is RM4." />
             <Button type="button" onClick={() => applyAnswer(answer)} disabled={!answer.trim() || processing || saving}>Use my answer</Button>
           </div>
           {transcript && (
             <section className="question-transcript" aria-live="polite">
               <span>Transcript</span>
               <p>{transcript}</p>
-              <Button type="button" variant="ghost" size="sm" onClick={() => { setAnswer(transcript); setTranscript(null); }}>Edit transcript</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setAnswer(transcript); setTranscript(null); setDraft(EMPTY_DETAILS); setFollowUp(null); setHasAnswered(false); }}>Edit transcript</Button>
             </section>
           )}
           {error && <div className="alert alert-error question-alert"><span className="alert-icon">!</span><span>{error}</span></div>}
           {followUp && <div className="question-followup" role="status"><strong>Almost there</strong><p>Only the requested detail is needed now.</p></div>}
         </Card>
 
-        <section className="question-details" aria-label="Extracted selling details">
+        {hasAnswered && <section className="question-details" aria-label="Extracted selling details">
           <div className="question-details-heading"><h2>Check the details</h2><p>You can correct anything before saving.</p></div>
           <div className="question-details-grid">
             <Input label="Selling location" value={draft.location_name ?? ''} onChange={event => updateDraft('location_name', event.target.value)} placeholder="e.g. Kampung Baru" />
-            <Input label="Food" value={draft.food_name ?? ''} onChange={event => updateDraft('food_name', event.target.value)} placeholder="e.g. Drinks" />
+            <Input label="Food" value={draft.food_name ?? ''} onChange={event => updateDraft('food_name', event.target.value)} placeholder="e.g. Nasi lemak" />
             <Input label="Quantity" type="number" min="0" inputMode="decimal" value={draft.quantity ?? ''} onChange={event => updateDraft('quantity', event.target.value)} placeholder="e.g. 110" />
             <div className="input-group"><label className="input-label" htmlFor="question-unit">Unit / package</label><select id="question-unit" className="input-field" value={draft.unit ?? ''} onChange={event => updateDraft('unit', event.target.value)}><option value="" disabled>Select a unit</option>{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
-            {(!focusedFirstSetup || draft.selling_price === null || draft.estimated_cost === null) && (
-              <>
-                <Input label="Selling price (RM)" type="number" min="0" step="0.01" inputMode="decimal" value={draft.selling_price ?? ''} onChange={event => updateDraft('selling_price', event.target.value)} placeholder="e.g. 3.00" />
-                <Input label="Cost per unit (RM)" type="number" min="0" step="0.01" inputMode="decimal" value={draft.estimated_cost ?? ''} onChange={event => updateDraft('estimated_cost', event.target.value)} placeholder="e.g. 1.20" />
-              </>
-            )}
+            <Input label="Selling price (RM)" type="number" min="0" step="0.01" inputMode="decimal" value={draft.selling_price ?? ''} onChange={event => updateDraft('selling_price', event.target.value)} placeholder="e.g. 3.00" />
+            <Input label="Cost per unit (RM)" type="number" min="0" step="0.01" inputMode="decimal" value={draft.estimated_cost ?? ''} onChange={event => updateDraft('estimated_cost', event.target.value)} placeholder="e.g. 1.20" />
             <Input label="Date mentioned (optional)" type="date" value={draft.planned_date ?? ''} onChange={event => updateDraft('planned_date', event.target.value)} hint="Create a dated selling plan from the dashboard when you are ready." />
           </div>
           {changeLocation && (
@@ -234,7 +206,7 @@ export default function Question() {
             </div>
           )}
           <Button size="lg" fullWidth onClick={() => void save()} loading={saving}>Save selling details and go to Dashboard</Button>
-        </section>
+        </section>}
       </main>
       {!focusedFirstSetup && <BottomNavigation />}
     </div>
