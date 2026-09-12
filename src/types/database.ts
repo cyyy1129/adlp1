@@ -106,3 +106,56 @@ export interface DailyCheckin {
   created_at: string;
   updated_at: string;
 }
+
+// Public, validated datasets are deliberately separate from seller-owned
+// plans/check-ins and the per-plan external_signals audit trail.
+export interface DataSource {
+  id: string;
+  source_key: string;
+  name: string;
+  publisher: string;
+  source_url: string;
+  license: string | null;
+  coverage_start: string | null;
+  coverage_end: string | null;
+  source_type: 'public_benchmark' | 'contextual_feature' | 'price_reference';
+  validation_status: 'validated' | 'pending_review' | 'rejected';
+  retrieved_at: string | null;
+  notes: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicBazaarBenchmark {
+  id: string;
+  source_id: string;
+  year: number;
+  bazaar_type: string;
+  state: string | null;
+  district: string | null;
+  location_name: string | null;
+  place_key: string;
+  stall_count: number;
+  sales_value: number;
+  persons_engaged: number | null;
+  sales_value_per_stall: number;
+  persons_engaged_per_stall: number | null;
+  metric_definition: string;
+  is_item_level_target: false;
+  created_at: string;
+}
+
+export interface PublicItemPrice {
+  id: string;
+  source_id: string;
+  year: number;
+  state: string | null;
+  place_key: string;
+  normalized_food_name: string;
+  display_name: string;
+  unit: string;
+  average_price: number;
+  location_scope: string;
+  is_demand_target: false;
+  created_at: string;
+}

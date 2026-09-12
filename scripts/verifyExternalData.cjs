@@ -37,6 +37,17 @@ const originalFetch = global.fetch;
 let weatherUnavailable = false;
 global.fetch = async (url) => {
   const value = String(url);
+  if (value.includes('archive-api.open-meteo.com')) {
+    if (weatherUnavailable) throw new Error('Network unavailable');
+    return response({
+      json: {
+        hourly: {
+          time: ['2025-09-19T16:00', '2025-09-19T17:00', '2025-09-19T18:00', '2025-09-19T22:00'],
+          temperature_2m: [30, 29, 28, 27], precipitation: [0, 0, 0.2, 1.1], weather_code: [1, 2, 61, 63],
+        },
+      },
+    });
+  }
   if (value.includes('api.open-meteo.com')) {
     if (weatherUnavailable) throw new Error('Network unavailable');
     return response({
@@ -66,6 +77,7 @@ global.fetch = async (url) => {
 };
 
 const { OpenMeteoWeatherService } = loadTypeScriptModule('src/services/weather/weatherService.ts');
+const { OpenMeteoHistoricalWeatherService } = loadTypeScriptModule('src/services/weather/historicalWeatherService.ts');
 const { PriceCatcherPricingService } = loadTypeScriptModule('src/services/pricing/pricingService.ts');
 const { RealEventService } = loadTypeScriptModule('src/services/events/eventService.ts');
 
@@ -80,6 +92,13 @@ const { RealEventService } = loadTypeScriptModule('src/services/events/eventServ
   assert.equal(weather.precipitation_probability, 70);
   assert.equal(weather.precipitation_mm, 1.3);
   assert.equal(weather.weather_code, 61);
+
+  const historicalWeather = await new OpenMeteoHistoricalWeatherService().getHistoricalContext({
+    date: '2026-09-19', start_time: '17:00', end_time: '22:00', latitude: 4.3, longitude: 101.1, location_name: 'Kampar',
+  });
+  assert.equal(historicalWeather.availability, 'available', 'Historical Open-Meteo context should use the separate archive endpoint');
+  assert.equal(historicalWeather.reference_date, '2025-09-19');
+  assert.equal(historicalWeather.precipitation_mm, 1.3);
 
   weatherUnavailable = true;
   const unavailableWeather = await weatherService.getForecast({
@@ -104,7 +123,7 @@ const { RealEventService } = loadTypeScriptModule('src/services/events/eventServ
   const unavailablePrice = await pricingService.getInsight({ food_name: 'Laksa', food_category: 'Noodles', location_name: 'Kampar' });
   assert.equal(unavailablePrice.availability, 'unavailable', 'An unmatched item must not receive an invented price');
 
-  console.log('External data verification passed: Open-Meteo data/fallback, actual empty event result, and PriceCatcher reference/fallback.');
+  console.log('External data verification passed: Open-Meteo forecast/history fallbacks, actual empty event result, and PriceCatcher reference/fallback.');
 })()
   .finally(() => { global.fetch = originalFetch; })
   .catch(error => {

@@ -56,7 +56,7 @@ const { getHistoricalSessions } = loadTypeScriptModule('src/services/forecast/fo
   assert.equal(result.error, null);
   assert.deepEqual(result.data, [{
     selling_plan_id: 'plan-1', food_id: 'food-1', selling_date: '2026-09-12', location_name: 'Kampar Night Market',
-    prepared_quantity: 80, leftover_quantity: 12, estimated_sold_quantity: 68, crowd_level: 'Normal',
+    prepared_quantity: 80, leftover_quantity: 12, estimated_sold_quantity: 68, unit: 'bowls', crowd_level: 'Normal',
   }]);
   console.log('Historical feed verification passed: completed user-owned check-ins become future forecast data.');
 })();

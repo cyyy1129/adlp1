@@ -4,10 +4,10 @@
 // ============================================================
 
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
-import type { DailyCheckin, ExternalSignal, SellerFood, SellingItem, SellingPlan } from '../../types/database';
+import type { DailyCheckin, ExternalSignal, Profile, SellerFood, SellingItem, SellingPlan } from '../../types/database';
 import type { ForecastPlanContext, ForecastResult, HistoricalSession } from '../../types/forecast';
 
-export const FORECAST_SOURCE = 'forecast_engine_v1';
+export const FORECAST_SOURCE = 'public_benchmark_empirical_estimator_v2';
 const FORECAST_SUMMARY_SIGNAL = 'forecast_summary';
 const WEATHER_OBSERVATION_SIGNAL = 'weather_observation';
 const EVENT_CONTEXT_SIGNAL = 'nearby_event_context';
@@ -89,11 +89,21 @@ export async function getForecastPlanContext(userId: string, planId: string): Pr
   const historical = await getHistoricalSessions(userId);
   if (historical.error) return { data: null, error: historical.error };
 
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+  if (profileError) return { data: null, error: profileError.message };
+  const profile = profileData as Profile | null;
+
   return {
     data: {
       plan,
       item,
       food: foodData as SellerFood,
+      seller_state: profile?.state ?? null,
+      seller_city: profile?.city ?? null,
       historical_sessions: historical.data ?? [],
     },
     error: null,
@@ -150,6 +160,7 @@ export async function getHistoricalSessions(userId: string): Promise<ServiceResu
           ? checkin.estimated_sold_quantity
           : checkin.prepared_quantity - checkin.leftover_quantity
       ),
+      unit: checkin.unit,
       crowd_level: checkin.crowd_level,
     });
   }
@@ -228,6 +239,24 @@ export async function saveForecastResult(planId: string, foodId: string, result:
     },
     {
       selling_plan_id: planId,
+      signal_type: 'historical_weather_context',
+      signal_data: result.historical_weather,
+      source: result.historical_weather.source ?? FORECAST_SOURCE,
+    },
+    {
+      selling_plan_id: planId,
+      signal_type: 'holiday_context',
+      signal_data: result.calendar_context,
+      source: result.calendar_context.source ?? FORECAST_SOURCE,
+    },
+    {
+      selling_plan_id: planId,
+      signal_type: 'transit_context',
+      signal_data: result.transit_context,
+      source: result.transit_context.source ?? FORECAST_SOURCE,
+    },
+    {
+      selling_plan_id: planId,
       signal_type: EVENT_CONTEXT_SIGNAL,
       signal_data: {
         availability: result.events_availability,
@@ -253,7 +282,7 @@ export async function saveForecastResult(planId: string, foodId: string, result:
       selling_plan_id: planId,
       signal_type: FORECAST_SUMMARY_SIGNAL,
       signal_data: {
-        status: result.is_estimate_available ? 'estimated' : 'insufficient_history',
+        status: result.source_type,
         baseline_quantity: result.baseline_quantity,
         estimated_min: result.estimated_min,
         estimated_max: result.estimated_max,
@@ -268,6 +297,25 @@ export async function saveForecastResult(planId: string, foodId: string, result:
   if (signalsError) {
     if (recommendationId) await supabase.from('recommendations').delete().eq('id', recommendationId);
     return { data: null, error: signalsError.message };
+  }
+
+  const { error: evidenceError } = await supabase.from('forecast_evidence_snapshots').insert({
+    selling_plan_id: planId,
+    source_type: result.source_type,
+    evidence: {
+      model_name: result.model_name,
+      model_version: result.model_version,
+      methodology: result.methodology,
+      evidence_level: result.evidence_level,
+      public_benchmark: result.public_benchmark,
+      comparable_strategy: result.comparable_strategy,
+      comparable_records: result.comparable_records,
+      source_provenance: result.public_benchmark.sources,
+    },
+  });
+  if (evidenceError) {
+    if (recommendationId) await supabase.from('recommendations').delete().eq('id', recommendationId);
+    return { data: null, error: `Forecast was calculated but its evidence snapshot could not be saved: ${evidenceError.message}` };
   }
 
   return { data: { recommendationId }, error: null };

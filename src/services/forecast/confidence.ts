@@ -1,44 +1,34 @@
 // ============================================================
-// Product confidence indicator, not a statistical probability.
+// Product evidence indicator, not statistical confidence.
+// It never changes a numerical estimate.
 // ============================================================
 
-import type { ForecastConfidence } from '../../types/forecast';
-import { CONFIDENCE_THRESHOLDS } from './signalWeights';
+import type { ForecastConfidence, ForecastSourceType } from '../../types/forecast';
 
-export function calculateConfidence(comparableRecords: number, unavailableContextSignals: number): ForecastConfidence {
-  if (comparableRecords === 0) {
+const PERSONAL_RECORD_THRESHOLDS = { medium: 2, high: 5 } as const;
+
+export function calculateConfidence(sourceType: ForecastSourceType, comparableRecords: number, unavailableContextSignals: number): ForecastConfidence {
+  if (sourceType === 'insufficient_evidence') {
     return {
-      level: 'Low',
-      score: CONFIDENCE_THRESHOLDS.lowScore,
-      comparable_records: 0,
-      unavailable_context_signals: unavailableContextSignals,
-      detail: 'No completed comparable sessions are available yet.',
+      level: 'Low', score: 0, comparable_records: comparableRecords, unavailable_context_signals: unavailableContextSignals,
+      detail: 'No compatible empirical quantity basis is available.',
     };
   }
-
-  let level: ForecastConfidence['level'] = 'Low';
-  let score: number = CONFIDENCE_THRESHOLDS.lowScore;
-  if (comparableRecords >= CONFIDENCE_THRESHOLDS.highComparableRecords) {
-    level = 'High';
-    score = CONFIDENCE_THRESHOLDS.highScore;
-  } else if (comparableRecords >= CONFIDENCE_THRESHOLDS.mediumComparableRecords) {
-    level = 'Medium';
-    score = CONFIDENCE_THRESHOLDS.mediumScore;
+  if (sourceType === 'public_benchmark') {
+    return {
+      level: 'Low', score: 25, comparable_records: 0, unavailable_context_signals: unavailableContextSignals,
+      detail: 'This is a public market benchmark approximation, not observed item-level session sales.',
+    };
   }
-
-  const adjustedScore = Math.max(
-    CONFIDENCE_THRESHOLDS.lowScore,
-    score - unavailableContextSignals * CONFIDENCE_THRESHOLDS.unavailableSignalPenalty
-  );
-
-  if (adjustedScore < CONFIDENCE_THRESHOLDS.mediumScore) level = 'Low';
-  else if (adjustedScore < CONFIDENCE_THRESHOLDS.highScore) level = 'Medium';
-
+  const level = comparableRecords >= PERSONAL_RECORD_THRESHOLDS.high ? 'High'
+    : comparableRecords >= PERSONAL_RECORD_THRESHOLDS.medium ? 'Medium'
+      : 'Low';
+  const score = level === 'High' ? 80 : level === 'Medium' ? 60 : 40;
   return {
     level,
-    score: adjustedScore,
+    score,
     comparable_records: comparableRecords,
     unavailable_context_signals: unavailableContextSignals,
-    detail: `${comparableRecords} completed comparable session${comparableRecords === 1 ? '' : 's'} inform this estimate.`,
+    detail: `${comparableRecords} private completed comparable session${comparableRecords === 1 ? '' : 's'} inform this empirical estimate.`,
   };
 }

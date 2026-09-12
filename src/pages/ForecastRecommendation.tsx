@@ -8,9 +8,13 @@ import Button from '../components/Button';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { getEventService } from '../services/events/eventService';
+import { getHolidayService } from '../services/context/holidayService';
+import { getTransitContext } from '../services/context/transitService';
 import { calculateForecast } from '../services/forecast/forecastEngine';
 import { getForecastPlanContext, getSavedForecast, saveForecastResult } from '../services/forecast/forecastDataService';
+import { getPublicBenchmarkEvidence } from '../services/forecast/publicBenchmarkService';
 import { getPricingService } from '../services/pricing/pricingService';
+import { getHistoricalWeatherService } from '../services/weather/historicalWeatherService';
 import { getWeatherService } from '../services/weather/weatherService';
 import type { ForecastPlanContext, ForecastResult } from '../types/forecast';
 
@@ -26,10 +30,6 @@ function formatTime(value: string | null, language: 'en' | 'ms'): string {
   return new Intl.DateTimeFormat(language === 'ms' ? 'ms-MY' : 'en-MY', {
     hour: 'numeric', minute: '2-digit',
   }).format(new Date(2000, 0, 1, hours, minutes));
-}
-
-function percent(value: number): string {
-  return `${value > 0 ? '+' : ''}${Math.round(value * 100)}%`;
 }
 
 function formatCurrency(value: number): string {
@@ -78,20 +78,35 @@ export default function ForecastRecommendation() {
         longitude: contextResult.data.plan.longitude,
         location_name: contextResult.data.plan.location_name,
       };
-      const [weather, eventResult, priceInsight] = await Promise.all([
+      const [weather, historicalWeather, eventResult, priceInsight, publicBenchmarkResult, calendarContext, transitContext] = await Promise.all([
         getWeatherService().getForecast(request),
+        getHistoricalWeatherService().getHistoricalContext(request),
         getEventService().getNearbyEvents(request),
         getPricingService().getInsight({
           food_name: contextResult.data.food.food_name,
           food_category: contextResult.data.food.food_category,
           location_name: contextResult.data.plan.location_name,
         }),
+        getPublicBenchmarkEvidence(contextResult.data),
+        getHolidayService().getContext(contextResult.data.plan.plan_date, contextResult.data.seller_state),
+        getTransitContext(contextResult.data.plan.location_name, contextResult.data.plan.plan_date),
       ]);
       if (!current) return;
 
+      if (!publicBenchmarkResult.data) {
+        setError(publicBenchmarkResult.error ?? 'Public benchmark data could not be loaded.');
+        setLoading(false);
+        return;
+      }
+      if (publicBenchmarkResult.error) setPersistenceNotice(`Public benchmark data was unavailable: ${publicBenchmarkResult.error}. Continuing without it.`);
+
       const calculated = calculateForecast({
         context: contextResult.data,
+        publicBenchmark: publicBenchmarkResult.data,
         weather,
+        historicalWeather,
+        calendarContext,
+        transitContext,
         events: eventResult.events,
         eventsAvailability: eventResult.availability,
         priceInsight,
@@ -127,6 +142,7 @@ export default function ForecastRecommendation() {
 
   const plan = context.plan;
   const food = context.food;
+  const isPublicBenchmark = forecast.source_type === 'public_benchmark';
   return (
     <div className="forecast-page">
       <header className="dashboard-header">
@@ -158,11 +174,15 @@ export default function ForecastRecommendation() {
         </section>
 
         <section className="forecast-result-card">
-          <p className="planning-confirmation-label">Recommended preparation</p>
+          <p className="planning-confirmation-label">{isPublicBenchmark ? 'Public benchmark reference' : 'Recommended preparation'}</p>
           {forecast.is_estimate_available ? (
             <>
               <div className="forecast-range">{forecast.estimated_min}–{forecast.estimated_max} <span>{forecast.unit}</span></div>
-              <p className="forecast-prepare">Prepare around <strong>{forecast.recommended_quantity} {forecast.unit}</strong></p>
+              <p className="forecast-prepare">
+                {isPublicBenchmark ? 'Revenue-equivalent benchmark: ' : 'Prepare around '}
+                <strong>{forecast.recommended_quantity} {forecast.unit}</strong>
+              </p>
+              {isPublicBenchmark && <p className="forecast-prepare">This is for the published bazaar period, not a claim about one session’s item-level units sold.</p>}
               <div className={`forecast-confidence forecast-confidence-${forecast.confidence.level.toLowerCase()}`}>
                 <span>Confidence</span><strong>{forecast.confidence.level}</strong>
               </div>
@@ -182,8 +202,8 @@ export default function ForecastRecommendation() {
           <h2>Why this estimate?</h2>
           {forecast.is_estimate_available && (
             <div className="forecast-calculation">
-              <span>Historical baseline: {forecast.baseline_quantity} {forecast.unit}</span>
-              <span>Signal adjustment: {percent(forecast.total_adjustment)}</span>
+              <span>{isPublicBenchmark ? 'Public benchmark:' : 'Personal empirical baseline:'} {forecast.baseline_quantity} {forecast.unit}</span>
+              <span>Method: {forecast.source_type === 'personalized' ? 'private completed sessions' : 'validated public benchmark'}</span>
             </div>
           )}
           <ul className="forecast-facts">
@@ -193,11 +213,24 @@ export default function ForecastRecommendation() {
             {forecast.signals.map(signal => (
               <article key={signal.kind} className={`forecast-signal forecast-signal-${signal.availability}`}>
                 <div><strong>{signal.label}</strong><span>{signal.detail}</span></div>
-                <b>{signal.adjustment === 0 ? 'No change' : percent(signal.adjustment)}</b>
+                <b>{signal.role === 'context_only' ? 'Context only' : signal.role === 'baseline' ? 'Baseline' : 'Calibration'}</b>
               </article>
             ))}
           </div>
-          <p className="forecast-disclaimer">This is a product confidence indicator based on your available records and configured signals, not a scientific probability.</p>
+          <p className="forecast-disclaimer">{forecast.methodology} Confidence is a product evidence indicator, not a scientific probability.</p>
+        </section>
+
+        <section className="forecast-section">
+          <h2>Evidence and sources</h2>
+          <article className="forecast-provider-card">
+            <strong>{forecast.evidence_level === 'benchmark_approximation' ? 'Public benchmark approximation' : forecast.evidence_level === 'personal_observations' ? 'Private seller observations' : 'Insufficient evidence'}</strong>
+            <p>{forecast.public_benchmark.limitation}</p>
+            {forecast.public_benchmark.sources.map(source => (
+              <p key={source.source_id}>
+                <a href={source.source_url} target="_blank" rel="noreferrer">{source.name}</a> — {source.publisher}; measures {source.what_it_measures}
+              </p>
+            ))}
+          </article>
         </section>
 
         <section className="forecast-section">
@@ -233,6 +266,29 @@ export default function ForecastRecommendation() {
           ) : (
             <article className="forecast-provider-card"><strong>No nearby event data available.</strong><p>No event adjustment was applied.</p></article>
           )}
+        </section>
+
+        <section className="forecast-section">
+          <h2>Historical weather</h2>
+          <article className="forecast-provider-card">
+            <strong>{forecast.historical_weather.availability === 'available' ? 'Observed reference' : 'Unavailable'}</strong>
+            <p>{forecast.historical_weather.summary}</p>
+            {forecast.historical_weather.source_url && <a href={forecast.historical_weather.source_url} target="_blank" rel="noreferrer">Open source</a>}
+          </article>
+        </section>
+
+        <section className="forecast-section">
+          <h2>Public holiday and transit context</h2>
+          <article className="forecast-provider-card">
+            <strong>{forecast.calendar_context.holiday_name ?? (forecast.calendar_context.is_public_holiday === false ? 'No public holiday listed' : 'Holiday data unavailable')}</strong>
+            <p>{forecast.calendar_context.summary}</p>
+            {forecast.calendar_context.source_url && <a href={forecast.calendar_context.source_url} target="_blank" rel="noreferrer">Open source</a>}
+          </article>
+          <article className="forecast-provider-card">
+            <strong>{forecast.transit_context.station_name ?? 'No reviewed transit link'}</strong>
+            <p>{forecast.transit_context.summary}</p>
+            {forecast.transit_context.source_url && <a href={forecast.transit_context.source_url} target="_blank" rel="noreferrer">Open source</a>}
+          </article>
         </section>
 
         <section className="forecast-section">
