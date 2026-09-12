@@ -76,7 +76,7 @@ export default function MapLocationPicker({ value, onChange }: MapLocationPicker
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-            <p style={{ fontSize: '14px', color: '#888' }}>Tap anywhere on the map to pin your location.</p>
+            <p style={{ fontSize: '14px', color: '#888' }}>Tap the map to pin your location, or enter a stall/place name below if the map is unavailable.</p>
 
             {/* Map Container  */}
             <div style={{ height: '300px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333', position: 'relative', zIndex: 0 }}>

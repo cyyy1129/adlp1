@@ -197,6 +197,13 @@ export function extractLocation(input: string): LocalExtraction<SellingLocation>
   };
 }
 
+/** Extracts a possible location from a full planning sentence for later confirmation. */
+export function extractLocationSuggestion(input: string): string | null {
+  const match = input.match(/\b(?:at|in|near|di)\s+(.+?)(?=\s+(?:from|between|dari|hingga|sampai)\s+\d|\s+\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)|[.,]?$)/i);
+  const location = match?.[1]?.replace(/\s+/g, ' ').trim();
+  return location || null;
+}
+
 export function extractFood(input: string): LocalExtraction<FoodSelection> {
   const foodName = input.replace(/\s+/g, ' ').trim();
   if (!foodName) return { data: null, missing: ['the food you will sell'], error: null };

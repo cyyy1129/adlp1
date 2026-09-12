@@ -13,6 +13,7 @@ import VoiceInput from '../components/planning/VoiceInput';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { extractPlanningInput } from '../services/ai/aiService';
+import { extractLocationSuggestion } from '../services/ai/extraction';
 import { formatSchedule, getFoodOptions, getMissingInfoMessage, getProgress, getQuestion, getRetryMessage, isPlanComplete } from '../services/ai/conversation';
 import { getSellerFoods, saveSellingPlan } from '../services/planningService';
 import type { SellerFood } from '../types/database';
@@ -56,6 +57,7 @@ export default function Planning() {
   const [flowNotice, setFlowNotice] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
+  const [suggestedLocation, setSuggestedLocation] = useState<string | null>(null);
   const nextMessageId = useRef(0);
   const initialised = useRef(false);
 
@@ -68,10 +70,13 @@ export default function Planning() {
     setMessages(current => [...current, { id: nextMessageId.current, role, text }]);
   }
 
-  function ask(nextStep: 'ASK_SCHEDULE' | 'ASK_LOCATION' | 'ASK_FOOD') {
-    setInput('');
+  function ask(nextStep: 'ASK_SCHEDULE' | 'ASK_LOCATION' | 'ASK_FOOD', suggestedAnswer = '') {
+    setInput(suggestedAnswer);
     setStep(nextStep);
-    appendMessage('assistant', getQuestion(nextStep, lang, foodOptions, profile));
+    const question = nextStep === 'ASK_LOCATION' && suggestedAnswer
+      ? `I also heard “${suggestedAnswer}”. Please confirm or edit the selling location.`
+      : getQuestion(nextStep, lang, foodOptions, profile);
+    appendMessage('assistant', question);
   }
 
   useEffect(() => {
@@ -117,6 +122,7 @@ export default function Planning() {
     }
 
     if (field === 'schedule') {
+      setSuggestedLocation(extractLocationSuggestion(value));
       setPending({ field, value: result.data as SellingSchedule });
       setStep('CONFIRM_SCHEDULE');
       appendMessage('assistant', lang === 'ms' ? 'Saya dengar perkara ini. Sila semak sebelum saya teruskan.' : 'Here’s what I understood. Please check it before I continue.');
@@ -146,7 +152,7 @@ export default function Planning() {
     if (pending.field === 'schedule') {
       setDraft(current => ({ ...current, schedule: pending.value }));
       setPending(null);
-      ask('ASK_LOCATION');
+      ask('ASK_LOCATION', suggestedLocation ?? '');
       return;
     }
     if (pending.field === 'location') {
@@ -213,6 +219,7 @@ export default function Planning() {
           <button className="lang-toggle" onClick={toggleLanguage} title="Toggle language">
             {lang === 'en' ? '🇬🇧 EN' : '🇲🇾 BM'}
           </button>
+          {user && <Link to="/profile" className="header-profile-link">Profile</Link>}
           {user && <Button variant="ghost" size="sm" onClick={logout}>{t.logout}</Button>}
         </div>
       </header>

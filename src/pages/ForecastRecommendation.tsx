@@ -132,6 +132,7 @@ export default function ForecastRecommendation() {
           <button className="lang-toggle" onClick={toggleLanguage} title="Toggle language">
             {lang === 'en' ? '🇬🇧 EN' : '🇲🇾 BM'}
           </button>
+          <Link to="/profile" className="header-profile-link">Profile</Link>
           <Button variant="ghost" size="sm" onClick={logout}>{t.logout}</Button>
         </div>
       </header>
@@ -226,6 +227,13 @@ export default function ForecastRecommendation() {
             <p>{forecast.price_insight.summary}</p>
             {forecast.price_insight.reference_url && <a href={forecast.price_insight.reference_url} target="_blank" rel="noreferrer">Open reference</a>}
           </article>
+        </section>
+
+        <section className="forecast-checkin-cta">
+          <p className="planning-confirmation-label">After you sell</p>
+          <h2>Record what happened</h2>
+          <p>Save prepared quantity, leftovers, and crowd level so future estimates can use this completed session.</p>
+          <Link to={`/plans/${plan.id}/check-in`}><Button size="lg">Record selling result</Button></Link>
         </section>
       </main>
     </div>

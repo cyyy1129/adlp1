@@ -98,11 +98,8 @@ export default function Onboarding() {
         );
 
       case 1:
-        return (
-          locationName.trim().length > 0 &&
-          latitude !== null &&
-          longitude !== null
-        );
+        // A typed stall/place name is enough when maps or geocoding is unavailable.
+        return locationName.trim().length > 0;
 
       case 2:
         return true;

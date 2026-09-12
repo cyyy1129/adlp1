@@ -105,7 +105,12 @@ export async function getHistoricalSessions(userId: string): Promise<ServiceResu
       location_name: checkin.location_name ?? plan.location_name,
       prepared_quantity: checkin.prepared_quantity,
       leftover_quantity: checkin.leftover_quantity,
-      estimated_sold_quantity: Math.max(0, checkin.prepared_quantity - checkin.leftover_quantity),
+      estimated_sold_quantity: Math.max(
+        0,
+        typeof checkin.estimated_sold_quantity === 'number'
+          ? checkin.estimated_sold_quantity
+          : checkin.prepared_quantity - checkin.leftover_quantity
+      ),
       crowd_level: checkin.crowd_level,
     });
   }

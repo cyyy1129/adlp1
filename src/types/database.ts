@@ -100,6 +100,7 @@ export interface DailyCheckin {
   location_name: string | null;
   prepared_quantity: number;
   leftover_quantity: number;
+  estimated_sold_quantity: number;
   unit: string;
   crowd_level: CrowdLevel;
   created_at: string;

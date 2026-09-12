@@ -9,6 +9,8 @@
     "lint": "oxlint",
     "test:forecast": "node scripts/verifyForecast.cjs",
     "test:forecast:persistence": "node scripts/verifyForecastPersistence.cjs",
+    "test:checkin": "node scripts/verifyCheckinFlow.cjs",
+    "test:history-feed": "node scripts/verifyHistoryFeed.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

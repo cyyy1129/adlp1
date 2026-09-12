@@ -12,6 +12,8 @@ import ForgotPassword from './pages/ForgotPassword';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import ForecastRecommendation from './pages/ForecastRecommendation';
+import DailyCheckin from './pages/DailyCheckin';
+import Profile from './pages/Profile';
 
 export default function App() {
   return (
@@ -49,6 +51,24 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <ForecastRecommendation />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/plans/:planId/check-in"
+              element={
+                <ProtectedRoute>
+                  <DailyCheckin />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
                 </ProtectedRoute>
               }
             />
