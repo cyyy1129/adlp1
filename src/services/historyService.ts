@@ -17,6 +17,10 @@ export interface HistoryEntry {
   crowd_level: DailyCheckin['crowd_level'];
 }
 
+function recordHistoryDiagnostic(action: string, error: unknown): void {
+  console.error(`[DemandLens history] ${action}`, error);
+}
+
 export async function getUserHistory(userId: string): Promise<{ data: HistoryEntry[]; error: string | null }> {
   if (!isSupabaseConfigured) return { data: [], error: 'Supabase is not configured.' };
 
@@ -25,7 +29,10 @@ export async function getUserHistory(userId: string): Promise<{ data: HistoryEnt
     .select('*')
     .eq('user_id', userId)
     .order('plan_date', { ascending: false });
-  if (planError) return { data: [], error: planError.message };
+  if (planError) {
+    recordHistoryDiagnostic('Selling-plan history lookup failed.', planError);
+    return { data: [], error: 'Your selling history could not be loaded right now.' };
+  }
   const plans = (planData as SellingPlan[] | null) ?? [];
   if (plans.length === 0) return { data: [], error: null };
   const planIds = plans.map(plan => plan.id);
@@ -35,9 +42,10 @@ export async function getUserHistory(userId: string): Promise<{ data: HistoryEnt
     supabase.from('selling_items').select('*').in('plan_id', planIds),
     supabase.from('seller_food').select('*').eq('user_id', userId),
   ]);
-  if (checkinsResult.error) return { data: [], error: checkinsResult.error.message };
-  if (itemsResult.error) return { data: [], error: itemsResult.error.message };
-  if (foodsResult.error) return { data: [], error: foodsResult.error.message };
+  if (checkinsResult.error || itemsResult.error || foodsResult.error) {
+    recordHistoryDiagnostic('Completed selling history lookup failed.', checkinsResult.error ?? itemsResult.error ?? foodsResult.error);
+    return { data: [], error: 'Your selling history could not be loaded right now.' };
+  }
 
   const checkins = (checkinsResult.data as DailyCheckin[] | null) ?? [];
   const items = (itemsResult.data as SellingItem[] | null) ?? [];
@@ -60,9 +68,7 @@ export async function getUserHistory(userId: string): Promise<{ data: HistoryEnt
           food_name: food.food_name,
           prepared_quantity: checkin.prepared_quantity,
           leftover_quantity: checkin.leftover_quantity,
-          estimated_sold_quantity: Math.max(0, typeof checkin.estimated_sold_quantity === 'number'
-            ? checkin.estimated_sold_quantity
-            : checkin.prepared_quantity - checkin.leftover_quantity),
+          estimated_sold_quantity: Math.max(0, checkin.prepared_quantity - checkin.leftover_quantity),
           unit: checkin.unit,
           crowd_level: checkin.crowd_level,
         } as HistoryEntry;

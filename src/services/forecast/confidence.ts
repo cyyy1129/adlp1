@@ -6,6 +6,7 @@
 import type { ForecastConfidence, ForecastSourceType } from '../../types/forecast';
 
 const PERSONAL_RECORD_THRESHOLDS = { medium: 2, high: 5 } as const;
+const PUBLIC_RECORD_THRESHOLDS = { medium: 5, high: 20 } as const;
 
 export function calculateConfidence(sourceType: ForecastSourceType, comparableRecords: number, unavailableContextSignals: number): ForecastConfidence {
   if (sourceType === 'insufficient_evidence') {
@@ -15,9 +16,13 @@ export function calculateConfidence(sourceType: ForecastSourceType, comparableRe
     };
   }
   if (sourceType === 'public_benchmark') {
+    const level = comparableRecords >= PUBLIC_RECORD_THRESHOLDS.high ? 'High'
+      : comparableRecords >= PUBLIC_RECORD_THRESHOLDS.medium ? 'Medium'
+        : 'Low';
+    const score = level === 'High' ? 70 : level === 'Medium' ? 50 : 25;
     return {
-      level: 'Low', score: 25, comparable_records: 0, unavailable_context_signals: unavailableContextSignals,
-      detail: 'This is a public market benchmark approximation, not observed item-level session sales.',
+      level, score, comparable_records: comparableRecords, unavailable_context_signals: unavailableContextSignals,
+      detail: `${comparableRecords} validated public per-session observation${comparableRecords === 1 ? '' : 's'} inform this product evidence indicator.`,
     };
   }
   const level = comparableRecords >= PERSONAL_RECORD_THRESHOLDS.high ? 'High'

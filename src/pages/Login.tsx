@@ -24,7 +24,13 @@ export default function Login() {
 
   // Already logged in — redirect
   if (user && profile) {
-    return <Navigate to={profile.onboarding_completed ? '/dashboard' : '/onboarding'} replace />;
+    return <Navigate to={
+      !profile.onboarding_completed
+        ? '/onboarding'
+        : !profile.voice_setup_completed_at
+          ? '/question'
+          : '/dashboard'
+    } replace />;
   }
 
   function validate(): boolean {
@@ -50,7 +56,7 @@ export default function Login() {
       return;
     }
 
-    // Auth state change will trigger redirect via ProtectedRoute
+    // Auth state change updates the session; the page-level redirect handles navigation.
     navigate('/dashboard');
   }
 

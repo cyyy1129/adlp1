@@ -92,8 +92,10 @@ export async function saveSellingPlan(userId: string, draft: PlanningDraft): Pro
     .insert({
       plan_id: savedPlan.id,
       food_id: sellerFood.id,
-      planned_qty: 0,
-      unit_price: 0,
+      // Reuse the seller's explicitly saved defaults when available. A zero
+      // remains an honest fallback for older food records with no setup yet.
+      planned_qty: sellerFood.default_quantity ?? 0,
+      unit_price: sellerFood.avg_price ?? 0,
     });
 
   if (itemError) {

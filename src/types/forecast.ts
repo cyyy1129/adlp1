@@ -44,15 +44,6 @@ export interface CalendarContext {
   source_url: string | null;
 }
 
-export interface TransitContext {
-  availability: DataAvailability;
-  summary: string;
-  station_name: string | null;
-  trips: number | null;
-  source: string | null;
-  source_url: string | null;
-}
-
 export interface NearbyEvent {
   name: string;
   distance_km: number | null;
@@ -77,6 +68,8 @@ export interface HistoricalSession {
   selling_plan_id: string;
   food_id: string;
   selling_date: string;
+  start_time: string | null;
+  end_time: string | null;
   location_name: string | null;
   prepared_quantity: number;
   leftover_quantity: number;
@@ -131,8 +124,7 @@ export type ForecastSignalKind =
   | 'weather_context'
   | 'historical_weather_context'
   | 'nearby_event_context'
-  | 'holiday_context'
-  | 'transit_context';
+  | 'holiday_context';
 
 export interface ForecastSignal {
   kind: ForecastSignalKind;
@@ -170,7 +162,6 @@ export interface ForecastResult {
   weather: WeatherForecast;
   historical_weather: HistoricalWeatherContext;
   calendar_context: CalendarContext;
-  transit_context: TransitContext;
   events: NearbyEvent[];
   events_availability: DataAvailability;
   price_insight: PriceInsight;

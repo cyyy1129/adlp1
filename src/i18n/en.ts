@@ -4,7 +4,7 @@
 
 const en = {
   // Common
-  appName: 'DemandLens',
+  appName: 'Bazaar Buddy',
   tagline: 'Smart demand planning for micro F&B sellers',
   loading: 'Loading...',
   save: 'Save',

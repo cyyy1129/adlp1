@@ -1,6 +1,7 @@
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { useEffect, useState } from 'react';
 import Input from './Input'; // Assuming you have this from your UI components
 
 // Fix for Leaflet default marker icon missing in Vite/React
@@ -25,10 +26,13 @@ interface LocationData {
 interface MapLocationPickerProps {
     value: LocationData;
     onChange: (val: LocationData) => void;
+    showAreaFields?: boolean;
+    preserveLocationName?: boolean;
+    helpText?: string;
 }
 
 // Sub-component to handle map clicks
-function LocationMarker({ value, onChange }: MapLocationPickerProps) {
+function LocationMarker({ value, onChange, preserveLocationName = false }: MapLocationPickerProps) {
     useMapEvents({
         click: async (e) => {
             const { lat, lng } = e.latlng;
@@ -46,7 +50,10 @@ function LocationMarker({ value, onChange }: MapLocationPickerProps) {
                 const locationName = data.display_name.split(',')[0] || 'Selected Location';
 
                 onChange({
-                    locationName,
+                    // A seller-entered stall/bazaar name is more useful than a
+                    // reverse-geocoded road label. The pin supplies only the
+                    // coordinates when that name is already present.
+                    locationName: preserveLocationName && value.locationName.trim() ? value.locationName : locationName,
                     latitude: lat,
                     longitude: lng,
                     city,
@@ -65,21 +72,61 @@ function LocationMarker({ value, onChange }: MapLocationPickerProps) {
     );
 }
 
-export default function MapLocationPicker({ value, onChange }: MapLocationPickerProps) {
+export default function MapLocationPicker({
+    value,
+    onChange,
+    showAreaFields = true,
+    preserveLocationName = false,
+    helpText = 'Tap the map to pin your location, or enter a stall/place name below if the map is unavailable.',
+}: MapLocationPickerProps) {
     // Default to Kuala Lumpur coordinates
     const defaultCenter: [number, number] = [3.1412, 101.6865];
 
     const currentCenter: [number, number] =
-        value.latitude && value.longitude
+        value.latitude !== null && value.longitude !== null
             ? [value.latitude, value.longitude]
             : defaultCenter;
+    const [searching, setSearching] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
+
+    async function searchLocation() {
+        const query = value.locationName.trim();
+        if (!query) {
+            setSearchError('Type a bazaar, market, or place name to search.');
+            return;
+        }
+        setSearching(true);
+        setSearchError(null);
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=${encodeURIComponent(query)}`);
+            const results: unknown = await response.json();
+            const result = Array.isArray(results) ? results[0] as Record<string, unknown> | undefined : undefined;
+            const latitude = typeof result?.lat === 'string' ? Number(result.lat) : null;
+            const longitude = typeof result?.lon === 'string' ? Number(result.lon) : null;
+            if (!response.ok || latitude === null || longitude === null || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                throw new Error('not-found');
+            }
+            const address = result?.address && typeof result.address === 'object' ? result.address as Record<string, unknown> : {};
+            onChange({
+                locationName: value.locationName,
+                latitude,
+                longitude,
+                city: typeof address.city === 'string' ? address.city : typeof address.town === 'string' ? address.town : typeof address.village === 'string' ? address.village : value.city,
+                state: typeof address.state === 'string' ? address.state : value.state,
+            });
+        } catch {
+            setSearchError('We could not find that place. You can still type the location name or tap the map.');
+        } finally {
+            setSearching(false);
+        }
+    }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-            <p style={{ fontSize: '14px', color: '#888' }}>Tap the map to pin your location, or enter a stall/place name below if the map is unavailable.</p>
+        <div className="map-location-picker">
+            <p className="map-location-help">{helpText}</p>
 
             {/* Map Container  */}
-            <div style={{ height: '300px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333', position: 'relative', zIndex: 0 }}>
+            <div className="map-location-canvas">
                 <MapContainer
                     center={currentCenter}
                     zoom={13}
@@ -90,20 +137,34 @@ export default function MapLocationPicker({ value, onChange }: MapLocationPicker
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                    <LocationMarker value={value} onChange={onChange} />
+                    <MapViewport latitude={value.latitude} longitude={value.longitude} />
+                    <LocationMarker value={value} onChange={onChange} preserveLocationName={preserveLocationName} />
                 </MapContainer>
             </div>
 
             {/* Inputs */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="map-location-fields">
                 <Input
-                    label="Location Name / Stall Name"
+                    label="Search or enter a location name"
                     value={value.locationName}
-                    onChange={(e) => onChange({ ...value, locationName: e.target.value })}
+                    onChange={(e) => {
+                        const locationName = e.target.value;
+                        // A renamed place must not retain a pin from the old
+                        // place. A search or map tap will attach fresh coordinates.
+                        const unchanged = locationName.trim() === value.locationName.trim();
+                        onChange({
+                            ...value,
+                            locationName,
+                            latitude: unchanged ? value.latitude : null,
+                            longitude: unchanged ? value.longitude : null,
+                        });
+                    }}
                     placeholder="e.g., Bazar Ramadan Kg Baru"
                 />
-                <div style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ flex: 1 }}>
+                <button type="button" className="btn btn-secondary btn-md" onClick={() => void searchLocation()} disabled={searching}>{searching ? 'Finding location…' : 'Find on map'}</button>
+                {searchError && <p className="map-search-error" role="alert">{searchError}</p>}
+                {showAreaFields && <div className="map-location-area-fields">
+                    <div>
                         <Input
                             label="City"
                             value={value.city}
@@ -111,7 +172,7 @@ export default function MapLocationPicker({ value, onChange }: MapLocationPicker
                             placeholder="City"
                         />
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div>
                         <Input
                             label="State"
                             value={value.state}
@@ -119,8 +180,18 @@ export default function MapLocationPicker({ value, onChange }: MapLocationPicker
                             placeholder="State"
                         />
                     </div>
-                </div>
+                </div>}
             </div>
         </div>
     );
+}
+
+function MapViewport({ latitude, longitude }: { latitude: number | null; longitude: number | null }) {
+    const map = useMap();
+    useEffect(() => {
+        if (latitude !== null && longitude !== null) {
+            map.setView([latitude, longitude], Math.max(map.getZoom(), 15));
+        }
+    }, [latitude, longitude, map]);
+    return null;
 }

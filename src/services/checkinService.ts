@@ -20,6 +20,10 @@ export interface DailyCheckinInput {
   crowd_level: DailyCheckin['crowd_level'];
 }
 
+function recordCheckinDiagnostic(action: string, error: unknown): void {
+  console.error(`[DemandLens check-in] ${action}`, error);
+}
+
 function validate(input: DailyCheckinInput): string | null {
   if (!input.location_name.trim()) return 'Please enter a selling location.';
   if (!Number.isFinite(input.prepared_quantity) || input.prepared_quantity <= 0) return 'Prepared quantity must be greater than zero.';
@@ -42,7 +46,11 @@ export async function getDailyCheckin(userId: string, sellingPlanId: string): Pr
     .eq('user_id', userId)
     .eq('selling_plan_id', sellingPlanId)
     .maybeSingle();
-  return { data: data as DailyCheckin | null, error: error?.message ?? null };
+  if (error) {
+    recordCheckinDiagnostic('Existing check-in lookup failed.', error);
+    return { data: null, error: 'Your saved selling result could not be loaded right now.' };
+  }
+  return { data: data as DailyCheckin | null, error: null };
 }
 
 export async function saveDailyCheckin(input: DailyCheckinInput): Promise<{ data: DailyCheckin | null; error: string | null }> {
@@ -56,7 +64,10 @@ export async function saveDailyCheckin(input: DailyCheckinInput): Promise<{ data
     .eq('id', input.selling_plan_id)
     .eq('user_id', input.user_id)
     .maybeSingle();
-  if (planLookupError || !plan) return { data: null, error: planLookupError?.message ?? 'Selling plan not found.' };
+  if (planLookupError || !plan) {
+    if (planLookupError) recordCheckinDiagnostic('Selling-plan lookup failed.', planLookupError);
+    return { data: null, error: 'Selling plan not found.' };
+  }
   if (plan.status !== 'confirmed' && plan.status !== 'completed') {
     return { data: null, error: 'Only a confirmed selling plan can have a selling result.' };
   }
@@ -69,10 +80,14 @@ export async function saveDailyCheckin(input: DailyCheckinInput): Promise<{ data
       location_name: input.location_name.trim(),
       unit: input.unit.trim(),
       estimated_sold_quantity: estimatedSold,
+      updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,selling_plan_id' })
     .select('*')
     .single();
-  if (error || !data) return { data: null, error: error?.message ?? 'Could not save your selling result.' };
+  if (error || !data) {
+    if (error) recordCheckinDiagnostic('Selling-result persistence failed.', error);
+    return { data: null, error: 'Your selling result could not be saved. Please try again.' };
+  }
 
   const { error: planError } = await supabase
     .from('selling_plans')
@@ -80,7 +95,8 @@ export async function saveDailyCheckin(input: DailyCheckinInput): Promise<{ data
     .eq('id', input.selling_plan_id)
     .eq('user_id', input.user_id);
   if (planError) {
-    return { data: data as DailyCheckin, error: `Your result was saved, but the plan could not be marked complete: ${planError.message}` };
+    recordCheckinDiagnostic('Plan completion update failed after check-in saved.', planError);
+    return { data: data as DailyCheckin, error: 'Your result was saved, but the plan status could not be updated yet. Please try again.' };
   }
 
   return { data: data as DailyCheckin, error: null };

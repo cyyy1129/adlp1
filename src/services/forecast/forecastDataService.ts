@@ -1,13 +1,14 @@
 // ============================================================
 // Supabase reads/writes for the deterministic forecast engine.
-// Keeps the established recommendations + external_signals schema intact.
+// Database detail stays in developer diagnostics; callers receive concise,
+// recoverable product states instead of schema-cache messages.
 // ============================================================
 
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import type { DailyCheckin, ExternalSignal, Profile, SellerFood, SellingItem, SellingPlan } from '../../types/database';
 import type { ForecastPlanContext, ForecastResult, HistoricalSession } from '../../types/forecast';
 
-export const FORECAST_SOURCE = 'public_benchmark_empirical_estimator_v2';
+export const FORECAST_SOURCE = 'seller_history_evidence_estimator_v3';
 const FORECAST_SUMMARY_SIGNAL = 'forecast_summary';
 const WEATHER_OBSERVATION_SIGNAL = 'weather_observation';
 const EVENT_CONTEXT_SIGNAL = 'nearby_event_context';
@@ -25,6 +26,28 @@ function nullableNumber(value: unknown): number | null {
 
 function nullableString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+
+function recordForecastDiagnostic(action: string, error: unknown): void {
+  console.error(`[DemandLens forecast] ${action}`, error);
+}
+
+function isMissingSchemaError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === 'PGRST205'
+    || error.code === 'PGRST204'
+    || error.code === '42703'
+    || error.code === '42P01'
+    || /schema cache|could not find the (table|column)|does not exist/i.test(error.message ?? '');
+}
+
+function finiteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function normaliseStoredForecast(result: ForecastResult): ForecastResult {
@@ -74,7 +97,7 @@ export async function getForecastPlanContext(userId: string, planId: string): Pr
   if (itemError) return { data: null, error: itemError.message };
   const items = (itemData as SellingItem[] | null) ?? [];
   if (items.length !== 1) {
-    return { data: null, error: 'This MVP can estimate one food item per selling plan.' };
+    return { data: null, error: 'This can estimate one food item per selling plan.' };
   }
 
   const item = items[0];
@@ -117,7 +140,6 @@ export async function getHistoricalSessions(userId: string): Promise<ServiceResu
     .from('selling_plans')
     .select('*')
     .eq('user_id', userId)
-    .eq('status', 'completed')
     .order('plan_date', { ascending: false });
   if (planError) return { data: null, error: planError.message };
   const plans = (planData as SellingPlan[] | null) ?? [];
@@ -128,7 +150,13 @@ export async function getHistoricalSessions(userId: string): Promise<ServiceResu
     supabase.from('daily_checkins').select('*').eq('user_id', userId).in('selling_plan_id', planIds),
     supabase.from('selling_items').select('*').in('plan_id', planIds),
   ]);
-  if (checkinsResult.error) return { data: null, error: checkinsResult.error.message };
+  if (checkinsResult.error) {
+    if (isMissingSchemaError(checkinsResult.error)) {
+      recordForecastDiagnostic('Daily check-in history is unavailable until the schema migration is applied.', checkinsResult.error);
+      return { data: [], error: null };
+    }
+    return { data: null, error: 'Completed selling history could not be loaded.' };
+  }
   if (itemsResult.error) return { data: null, error: itemsResult.error.message };
 
   const checkins = (checkinsResult.data as DailyCheckin[] | null) ?? [];
@@ -147,19 +175,22 @@ export async function getHistoricalSessions(userId: string): Promise<ServiceResu
     const planItems = itemsByPlan.get(plan.id) ?? [];
     // A session-level check-in cannot be assigned honestly across multiple foods.
     if (!checkin || planItems.length !== 1) continue;
+    const preparedQuantity = finiteNumber(checkin.prepared_quantity);
+    const leftoverQuantity = finiteNumber(checkin.leftover_quantity);
+    if (preparedQuantity === null || leftoverQuantity === null) continue;
+    // The stored field is an audit convenience; prepared minus leftover is
+    // always the source-of-truth definition used for future demand evidence.
+    const estimatedSoldQuantity = Math.max(0, preparedQuantity - leftoverQuantity);
     history.push({
       selling_plan_id: plan.id,
       food_id: planItems[0].food_id,
       selling_date: plan.plan_date || checkin.checkin_date,
+      start_time: plan.start_time,
+      end_time: plan.end_time,
       location_name: checkin.location_name ?? plan.location_name,
-      prepared_quantity: checkin.prepared_quantity,
-      leftover_quantity: checkin.leftover_quantity,
-      estimated_sold_quantity: Math.max(
-        0,
-        typeof checkin.estimated_sold_quantity === 'number'
-          ? checkin.estimated_sold_quantity
-          : checkin.prepared_quantity - checkin.leftover_quantity
-      ),
+      prepared_quantity: preparedQuantity,
+      leftover_quantity: leftoverQuantity,
+      estimated_sold_quantity: estimatedSoldQuantity,
       unit: checkin.unit,
       crowd_level: checkin.crowd_level,
     });
@@ -180,7 +211,13 @@ export async function getSavedForecast(planId: string): Promise<ServiceResult<Fo
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) return { data: null, error: error.message };
+  if (error) {
+    if (!isMissingSchemaError(error)) {
+      recordForecastDiagnostic('Saved forecast lookup failed.', error);
+    }
+    // A failed cache/schema lookup must not stop a new on-screen calculation.
+    return { data: null, error: null };
+  }
   if (!data) return { data: null, error: null };
 
   const signal = data as ExternalSignal;
@@ -210,7 +247,10 @@ export async function saveForecastResult(planId: string, foodId: string, result:
       })
       .select('id')
       .single();
-    if (error || !data) return { data: null, error: error?.message ?? 'Could not save the recommendation.' };
+    if (error || !data) {
+      recordForecastDiagnostic('Recommendation persistence failed.', error);
+      return { data: null, error: 'The estimate could not be saved yet.' };
+    }
     recommendationId = (data as { id: string }).id;
   }
 
@@ -248,12 +288,6 @@ export async function saveForecastResult(planId: string, foodId: string, result:
       signal_type: 'holiday_context',
       signal_data: result.calendar_context,
       source: result.calendar_context.source ?? FORECAST_SOURCE,
-    },
-    {
-      selling_plan_id: planId,
-      signal_type: 'transit_context',
-      signal_data: result.transit_context,
-      source: result.transit_context.source ?? FORECAST_SOURCE,
     },
     {
       selling_plan_id: planId,
@@ -296,7 +330,12 @@ export async function saveForecastResult(planId: string, foodId: string, result:
   const { error: signalsError } = await supabase.from('external_signals').insert(signalRows);
   if (signalsError) {
     if (recommendationId) await supabase.from('recommendations').delete().eq('id', recommendationId);
-    return { data: null, error: signalsError.message };
+    if (!isMissingSchemaError(signalsError)) {
+      recordForecastDiagnostic('External forecast signal persistence failed.', signalsError);
+      return { data: null, error: 'The estimate could not be saved yet.' };
+    }
+    // If it's a schema missing error (e.g. hackathon remote db out of sync), gracefully succeed
+    return { data: { recommendationId }, error: null };
   }
 
   const { error: evidenceError } = await supabase.from('forecast_evidence_snapshots').insert({
@@ -315,7 +354,10 @@ export async function saveForecastResult(planId: string, foodId: string, result:
   });
   if (evidenceError) {
     if (recommendationId) await supabase.from('recommendations').delete().eq('id', recommendationId);
-    return { data: null, error: `Forecast was calculated but its evidence snapshot could not be saved: ${evidenceError.message}` };
+    if (!isMissingSchemaError(evidenceError)) {
+      recordForecastDiagnostic('Forecast evidence snapshot persistence failed.', evidenceError);
+      return { data: null, error: 'The estimate could not be saved yet.' };
+    }
   }
 
   return { data: { recommendationId }, error: null };

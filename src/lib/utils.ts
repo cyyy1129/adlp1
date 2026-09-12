@@ -50,7 +50,6 @@ export const MALAYSIAN_STATES = [
 export const FOOD_CATEGORIES = [
   'Noodles',
   'Rice dishes',
-  'Drinks',
   'Desserts',
   'Snacks',
   'Grilled food',

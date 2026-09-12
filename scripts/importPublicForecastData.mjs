@@ -266,12 +266,12 @@ async function runImport() {
   await upsertInBatches(supabase, 'public_bazaar_benchmarks', benchmarks.map(row => ({ ...row, source_id: bazaarSourceId })), 'source_id,year,bazaar_type,place_key');
   await upsertInBatches(supabase, 'public_item_prices', prices.map(row => ({ ...row, source_id: priceSourceId })), 'source_id,year,place_key,normalized_food_name,unit');
   const { error: modelError } = await supabase.from('model_versions').upsert({
-    model_name: 'public_benchmark_empirical_estimator',
-    version: '2.0.0',
-    methodology: 'Public market sales-per-stall benchmark with explicit revenue-equivalent conversion when a verified per-serving denominator is present. Private seller check-ins are used only for user-scoped empirical calibration. Weather, events, holidays and transit remain context-only without labelled-demand validation.',
+    model_name: 'seller_history_evidence_estimator',
+    version: '3.0.0',
+    methodology: 'Private seller check-ins are the current numerical basis because they contain compatible prepared, leftover, and estimated units sold. DOSM bazaar market statistics and item-price references retain provenance as context only; they are never converted into item-level demand. Weather, events, and holidays remain context-only without labelled-demand validation.',
     feature_definition: {
-      numerical_basis: ['DOSM sales_value_per_stall', 'verified per-serving price', 'private completed check-ins when present'],
-      context_only: ['weekday', 'weather', 'events', 'holiday', 'Rapid Rail OD activity proxy'],
+      numerical_basis: ['private completed check-ins', 'future validated public per-session units-sold records'],
+      context_only: ['DOSM bazaar market statistics', 'DOSM item-price references', 'weekday', 'weather', 'events', 'holiday'],
     },
     evaluation_metrics: {},
     source_ids: [bazaarSourceId, priceSourceId],

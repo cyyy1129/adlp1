@@ -12,6 +12,7 @@
     "test:external-data": "node scripts/verifyExternalData.cjs",
     "test:checkin": "node scripts/verifyCheckinFlow.cjs",
     "test:history-feed": "node scripts/verifyHistoryFeed.cjs",
+    "test:setup": "node scripts/verifySellingSetup.cjs",
     "import:public-data": "node --env-file=.env scripts/importPublicForecastData.mjs",
     "validate:public-data": "node scripts/importPublicForecastData.mjs --validate-local",
     "preview": "vite preview"

@@ -118,6 +118,15 @@ function parseDate(input: string, referenceDate: Date): string | null {
   return null;
 }
 
+/**
+ * Extract a date that was explicitly mentioned in a natural-language answer.
+ * This small public wrapper lets other deterministic input flows reuse the
+ * exact same Malaysian date parsing rules without duplicating them.
+ */
+export function extractDate(input: string, referenceDate = new Date()): string | null {
+  return parseDate(input, referenceDate);
+}
+
 interface ParsedTime {
   value: string;
   meridiem: 'am' | 'pm' | null;

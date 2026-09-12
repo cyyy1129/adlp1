@@ -8,10 +8,23 @@ export interface Profile {
   last_name: string;
   username: string;
   phone: string;
-  email: string;
+  // Auth owns email in the deployed schema. Some older profile rows do not
+  // expose a copied email column, so the UI falls back to auth.user.email.
+  email?: string | null;
 
   state: string | null;
   city: string | null;
+  default_location_name: string | null;
+  default_latitude: number | null;
+  default_longitude: number | null;
+  default_location_updated_at: string | null;
+  daily_location_confirmed_on: string | null;
+  voice_setup_completed_at: string | null;
+  default_seller_food_id: string | null;
+  onboarding_usual_quantity: number | null;
+  onboarding_unit: string | null;
+  onboarding_selling_price: number | null;
+  onboarding_estimated_cost: number | null;
 
   preferred_language: 'en' | 'ms';
   onboarding_completed: boolean;
@@ -20,7 +33,7 @@ export interface Profile {
   custom_food_name: string | null;
 
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface SellerFood {
@@ -30,8 +43,10 @@ export interface SellerFood {
   food_name: string;
   unit: string;
   avg_price: number;
+  default_quantity: number | null;
+  estimated_cost: number | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface SellingPlan {
@@ -60,17 +75,17 @@ export interface SellingItem {
   planned_qty: number;
   unit_price: number;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface Recommendation {
   id: string;
   selling_plan_id: string;
-  food_id: string;
-  recommended_qty: number;
-  min_qty: number;
-  max_qty: number;
-  confidence: number;
+  food_id: string | null;
+  recommended_qty: number | null;
+  min_qty: number | null;
+  max_qty: number | null;
+  confidence: number | null;
   reasoning: string | null;
   source: string | null;
   created_at: string;
@@ -79,9 +94,11 @@ export interface Recommendation {
 
 export interface ExternalSignal {
   id: string;
-  selling_plan_id: string;
-  signal_type: string;
-  signal_data: Record<string, unknown>;
+  // Nullable only for legacy rows retained from external_signals.plan_id.
+  // New writes always populate selling_plan_id via the migration trigger.
+  selling_plan_id: string | null;
+  signal_type: string | null;
+  signal_data: Record<string, unknown> | null;
   source: string | null;
   created_at: string;
   updated_at: string;

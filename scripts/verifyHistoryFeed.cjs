@@ -24,7 +24,7 @@ const supabaseStub = {
     }
     if (table === 'daily_checkins') {
       return resultBuilder({
-        data: [{ id: 'checkin-1', user_id: 'user-1', selling_plan_id: 'plan-1', checkin_date: '2026-09-12', location_name: 'Kampar Night Market', prepared_quantity: 80, leftover_quantity: 12, estimated_sold_quantity: 68, unit: 'bowls', crowd_level: 'Normal', created_at: '', updated_at: '' }],
+        data: [{ id: 'checkin-1', user_id: 'user-1', selling_plan_id: 'plan-1', checkin_date: '2026-09-12', location_name: 'Kampar Night Market', prepared_quantity: 80, leftover_quantity: 12, estimated_sold_quantity: 999, unit: 'bowls', crowd_level: 'Normal', created_at: '', updated_at: '' }],
         error: null,
       });
     }
@@ -55,7 +55,7 @@ const { getHistoricalSessions } = loadTypeScriptModule('src/services/forecast/fo
   const result = await getHistoricalSessions('user-1');
   assert.equal(result.error, null);
   assert.deepEqual(result.data, [{
-    selling_plan_id: 'plan-1', food_id: 'food-1', selling_date: '2026-09-12', location_name: 'Kampar Night Market',
+    selling_plan_id: 'plan-1', food_id: 'food-1', selling_date: '2026-09-12', start_time: '17:00', end_time: '22:00', location_name: 'Kampar Night Market',
     prepared_quantity: 80, leftover_quantity: 12, estimated_sold_quantity: 68, unit: 'bowls', crowd_level: 'Normal',
   }]);
   console.log('Historical feed verification passed: completed user-owned check-ins become future forecast data.');

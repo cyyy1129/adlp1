@@ -1,19 +1,18 @@
-// ============================================================
-// App — Root component with routing
-// ============================================================
-
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './hooks/useAuth';
 import { LanguageProvider } from './hooks/useLanguage';
-import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
+import Subscription from './pages/Subscription';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import ForecastRecommendation from './pages/ForecastRecommendation';
 import DailyCheckin from './pages/DailyCheckin';
 import Profile from './pages/Profile';
+import Planning from './pages/Planning';
+import Question from './pages/Question';
+import RecommendationPreview from './pages/RecommendationPreview';
 
 export default function App() {
   return (
@@ -21,59 +20,22 @@ export default function App() {
       <AuthProvider>
         <LanguageProvider>
           <Routes>
-            {/* Public routes */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/subscription" element={<Subscription />} />
 
-            {/* Onboarding — requires auth but NOT onboarding completion */}
-            <Route
-              path="/onboarding"
-              element={
-                <ProtectedRoute requireOnboarding={false}>
-                  <Onboarding />
-                </ProtectedRoute>
-              }
-            />
+            {/* 🟢 开放所有主要页面，取消强行重定向 */}
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/question" element={<Question />} />
+            <Route path="/recommendation" element={<RecommendationPreview />} />
+            <Route path="/planning" element={<Planning />} />
+            <Route path="/plans/:planId/recommendation" element={<ForecastRecommendation />} />
+            <Route path="/plans/:planId/check-in" element={<DailyCheckin />} />
+            <Route path="/profile" element={<Profile />} />
 
-            {/* Protected routes — require auth + onboarding */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/plans/:planId/recommendation"
-              element={
-                <ProtectedRoute>
-                  <ForecastRecommendation />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/plans/:planId/check-in"
-              element={
-                <ProtectedRoute>
-                  <DailyCheckin />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Default redirect */}
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </LanguageProvider>

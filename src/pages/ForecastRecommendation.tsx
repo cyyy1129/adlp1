@@ -9,7 +9,6 @@ import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { getEventService } from '../services/events/eventService';
 import { getHolidayService } from '../services/context/holidayService';
-import { getTransitContext } from '../services/context/transitService';
 import { calculateForecast } from '../services/forecast/forecastEngine';
 import { getForecastPlanContext, getSavedForecast, saveForecastResult } from '../services/forecast/forecastDataService';
 import { getPublicBenchmarkEvidence } from '../services/forecast/publicBenchmarkService';
@@ -47,7 +46,16 @@ export default function ForecastRecommendation() {
   const [persistenceNotice, setPersistenceNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || !planId) return;
+    if (!planId) {
+      setError('We could not find this selling plan. Please return to planning and try again.');
+      setLoading(false);
+      return;
+    }
+    if (!user) {
+      setError('This selling-plan estimate is available after a plan has been saved to a connected seller account.');
+      setLoading(false);
+      return;
+    }
     let current = true;
 
     async function load() {
@@ -56,7 +64,8 @@ export default function ForecastRecommendation() {
       const contextResult = await getForecastPlanContext(user!.id, planId!);
       if (!current) return;
       if (contextResult.error || !contextResult.data) {
-        setError(contextResult.error ?? 'Forecast context could not be loaded.');
+        console.error('[DemandLens forecast] Forecast plan context could not be loaded.', contextResult.error);
+        setError('We could not load this selling plan. Please return to your plans and try again.');
         setLoading(false);
         return;
       }
@@ -78,7 +87,7 @@ export default function ForecastRecommendation() {
         longitude: contextResult.data.plan.longitude,
         location_name: contextResult.data.plan.location_name,
       };
-      const [weather, historicalWeather, eventResult, priceInsight, publicBenchmarkResult, calendarContext, transitContext] = await Promise.all([
+      const [weather, historicalWeather, eventResult, priceInsight, publicBenchmarkResult, calendarContext] = await Promise.all([
         getWeatherService().getForecast(request),
         getHistoricalWeatherService().getHistoricalContext(request),
         getEventService().getNearbyEvents(request),
@@ -89,24 +98,21 @@ export default function ForecastRecommendation() {
         }),
         getPublicBenchmarkEvidence(contextResult.data),
         getHolidayService().getContext(contextResult.data.plan.plan_date, contextResult.data.seller_state),
-        getTransitContext(contextResult.data.plan.location_name, contextResult.data.plan.plan_date),
       ]);
       if (!current) return;
 
       if (!publicBenchmarkResult.data) {
-        setError(publicBenchmarkResult.error ?? 'Public benchmark data could not be loaded.');
+        console.error('[DemandLens forecast] Public benchmark context could not be prepared.', publicBenchmarkResult.error);
+        setError('We could not prepare the evidence for this estimate. Please try again.');
         setLoading(false);
         return;
       }
-      if (publicBenchmarkResult.error) setPersistenceNotice(`Public benchmark data was unavailable: ${publicBenchmarkResult.error}. Continuing without it.`);
-
       const calculated = calculateForecast({
         context: contextResult.data,
         publicBenchmark: publicBenchmarkResult.data,
         weather,
         historicalWeather,
         calendarContext,
-        transitContext,
         events: eventResult.events,
         eventsAvailability: eventResult.availability,
         priceInsight,
@@ -114,7 +120,7 @@ export default function ForecastRecommendation() {
       setForecast(calculated);
       const saveResult = await saveForecastResult(planId!, contextResult.data.food.id, calculated);
       if (!current) return;
-      if (saveResult.error) setPersistenceNotice(`Forecast shown, but it could not be saved: ${saveResult.error}`);
+      if (saveResult.error) setPersistenceNotice('This estimate could not be saved yet. Your selling plan is still available, and you can continue to record the result after you sell.');
       setLoading(false);
     }
 
@@ -131,7 +137,7 @@ export default function ForecastRecommendation() {
       <div className="forecast-page">
         <header className="dashboard-header">
           <span className="brand-name-sm">{t.appName}</span>
-          <Link to="/dashboard"><Button variant="ghost" size="sm">Back to plan</Button></Link>
+          <Link to="/planning"><Button variant="ghost" size="sm">Back to plan</Button></Link>
         </header>
         <main className="forecast-shell">
           <div className="alert alert-error"><span className="alert-icon">!</span><span>{error ?? 'Forecast unavailable.'}</span></div>
@@ -143,6 +149,7 @@ export default function ForecastRecommendation() {
   const plan = context.plan;
   const food = context.food;
   const isPublicBenchmark = forecast.source_type === 'public_benchmark';
+  const primarySignals = forecast.signals.filter(signal => signal.kind === 'personal_history' || signal.kind === 'public_benchmark');
   return (
     <div className="forecast-page">
       <header className="dashboard-header">
@@ -151,16 +158,16 @@ export default function ForecastRecommendation() {
           <span className="brand-name-sm">{t.appName}</span>
         </div>
         <div className="dashboard-header-right">
-          <button className="lang-toggle" onClick={toggleLanguage} title="Toggle language">
+          <button className="lang-toggle" onClick={toggleLanguage} title="Toggle language" aria-label="Toggle application language">
             {lang === 'en' ? '🇬🇧 EN' : '🇲🇾 BM'}
           </button>
           <Link to="/profile" className="header-profile-link">Profile</Link>
-          <Button variant="ghost" size="sm" onClick={logout}>{t.logout}</Button>
+          {user && <Button variant="ghost" size="sm" onClick={logout}>{t.logout}</Button>}
         </div>
       </header>
 
       <main className="forecast-shell">
-        <Link to="/dashboard" className="forecast-back">← Back to plan</Link>
+        <Link to="/planning" className="forecast-back">← Back to plan</Link>
         <section className="forecast-heading">
           <p className="planning-eyebrow">DEMAND ESTIMATE</p>
           <h1>Your selling plan</h1>
@@ -174,15 +181,13 @@ export default function ForecastRecommendation() {
         </section>
 
         <section className="forecast-result-card">
-          <p className="planning-confirmation-label">{isPublicBenchmark ? 'Public benchmark reference' : 'Recommended preparation'}</p>
+          <p className="planning-confirmation-label">Recommended preparation</p>
           {forecast.is_estimate_available ? (
             <>
               <div className="forecast-range">{forecast.estimated_min}–{forecast.estimated_max} <span>{forecast.unit}</span></div>
               <p className="forecast-prepare">
-                {isPublicBenchmark ? 'Revenue-equivalent benchmark: ' : 'Prepare around '}
-                <strong>{forecast.recommended_quantity} {forecast.unit}</strong>
+                Prepare around <strong>{forecast.recommended_quantity} {forecast.unit}</strong>
               </p>
-              {isPublicBenchmark && <p className="forecast-prepare">This is for the published bazaar period, not a claim about one session’s item-level units sold.</p>}
               <div className={`forecast-confidence forecast-confidence-${forecast.confidence.level.toLowerCase()}`}>
                 <span>Confidence</span><strong>{forecast.confidence.level}</strong>
               </div>
@@ -194,6 +199,7 @@ export default function ForecastRecommendation() {
               <div className="forecast-confidence forecast-confidence-low"><span>Confidence</span><strong>Low</strong></div>
             </>
           )}
+          <p className="forecast-disclaimer">This is an estimate, not a guarantee. Your actual selling result will help improve future recommendations.</p>
         </section>
 
         {persistenceNotice && <div className="alert alert-warning forecast-notice"><span className="alert-icon">!</span><span>{persistenceNotice}</span></div>}
@@ -202,29 +208,29 @@ export default function ForecastRecommendation() {
           <h2>Why this estimate?</h2>
           {forecast.is_estimate_available && (
             <div className="forecast-calculation">
-              <span>{isPublicBenchmark ? 'Public benchmark:' : 'Personal empirical baseline:'} {forecast.baseline_quantity} {forecast.unit}</span>
-              <span>Method: {forecast.source_type === 'personalized' ? 'private completed sessions' : 'validated public benchmark'}</span>
+              <span>{isPublicBenchmark ? 'Public-session benchmark:' : 'Historical sales baseline:'} {forecast.baseline_quantity} {forecast.unit}</span>
+              <span>Method: {forecast.source_type === 'personalized' ? 'private completed sessions' : 'validated public session observations'}</span>
             </div>
           )}
           <ul className="forecast-facts">
             {forecast.explanation_facts.map(fact => <li key={fact}>{fact}</li>)}
           </ul>
-          <div className="forecast-signal-list">
-            {forecast.signals.map(signal => (
+          {primarySignals.length > 0 && <div className="forecast-signal-list">
+            {primarySignals.map(signal => (
               <article key={signal.kind} className={`forecast-signal forecast-signal-${signal.availability}`}>
                 <div><strong>{signal.label}</strong><span>{signal.detail}</span></div>
                 <b>{signal.role === 'context_only' ? 'Context only' : signal.role === 'baseline' ? 'Baseline' : 'Calibration'}</b>
               </article>
             ))}
-          </div>
+          </div>}
           <p className="forecast-disclaimer">{forecast.methodology} Confidence is a product evidence indicator, not a scientific probability.</p>
         </section>
 
         <section className="forecast-section">
           <h2>Evidence and sources</h2>
           <article className="forecast-provider-card">
-            <strong>{forecast.evidence_level === 'benchmark_approximation' ? 'Public benchmark approximation' : forecast.evidence_level === 'personal_observations' ? 'Private seller observations' : 'Insufficient evidence'}</strong>
-            <p>{forecast.public_benchmark.limitation}</p>
+            <strong>{forecast.evidence_level === 'benchmark_approximation' ? 'Validated public session observations' : forecast.evidence_level === 'personal_observations' ? 'Private seller observations' : 'Current evidence'}</strong>
+            <p>{forecast.public_benchmark.availability === 'available' ? forecast.public_benchmark.limitation : 'No compatible public session-level units-sold dataset is currently connected for this plan.'}</p>
             {forecast.public_benchmark.sources.map(source => (
               <p key={source.source_id}>
                 <a href={source.source_url} target="_blank" rel="noreferrer">{source.name}</a> — {source.publisher}; measures {source.what_it_measures}
@@ -269,25 +275,11 @@ export default function ForecastRecommendation() {
         </section>
 
         <section className="forecast-section">
-          <h2>Historical weather</h2>
+          <h2>Holiday context</h2>
           <article className="forecast-provider-card">
-            <strong>{forecast.historical_weather.availability === 'available' ? 'Observed reference' : 'Unavailable'}</strong>
-            <p>{forecast.historical_weather.summary}</p>
-            {forecast.historical_weather.source_url && <a href={forecast.historical_weather.source_url} target="_blank" rel="noreferrer">Open source</a>}
-          </article>
-        </section>
-
-        <section className="forecast-section">
-          <h2>Public holiday and transit context</h2>
-          <article className="forecast-provider-card">
-            <strong>{forecast.calendar_context.holiday_name ?? (forecast.calendar_context.is_public_holiday === false ? 'No public holiday listed' : 'Holiday data unavailable')}</strong>
-            <p>{forecast.calendar_context.summary}</p>
+            <strong>{forecast.calendar_context.availability === 'available' ? forecast.calendar_context.holiday_name ?? (forecast.calendar_context.is_public_holiday === false ? 'No public holiday listed' : 'Holiday context') : 'Holiday context unavailable'}</strong>
+            <p>{forecast.calendar_context.availability === 'available' ? forecast.calendar_context.summary : 'No holiday adjustment was applied.'}</p>
             {forecast.calendar_context.source_url && <a href={forecast.calendar_context.source_url} target="_blank" rel="noreferrer">Open source</a>}
-          </article>
-          <article className="forecast-provider-card">
-            <strong>{forecast.transit_context.station_name ?? 'No reviewed transit link'}</strong>
-            <p>{forecast.transit_context.summary}</p>
-            {forecast.transit_context.source_url && <a href={forecast.transit_context.source_url} target="_blank" rel="noreferrer">Open source</a>}
           </article>
         </section>
 
@@ -299,7 +291,7 @@ export default function ForecastRecommendation() {
             {forecast.price_insight.availability === 'available' && forecast.price_insight.item_name && forecast.price_insight.recent_price !== null && (
               <dl className="forecast-data-grid">
                 <div><dt>Item</dt><dd>{forecast.price_insight.item_name}</dd></div>
-                <div><dt>Recent reference</dt><dd>{formatCurrency(forecast.price_insight.recent_price)}{forecast.price_insight.unit ? ` / ${forecast.price_insight.unit}` : ''}</dd></div>
+                <div><dt>Market price reference</dt><dd>{formatCurrency(forecast.price_insight.recent_price)}{forecast.price_insight.unit ? ` / ${forecast.price_insight.unit}` : ''}</dd></div>
                 {forecast.price_insight.price_date && <div><dt>Reference date</dt><dd>{forecast.price_insight.price_date}</dd></div>}
                 {forecast.price_insight.sample_size && <div><dt>Observed records</dt><dd>{forecast.price_insight.sample_size}</dd></div>}
               </dl>

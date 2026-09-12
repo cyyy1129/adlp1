@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../components/Button';
+import MapLocationPicker from '../components/MapLocationPicker';
 import ChatMessage from '../components/planning/ChatMessage';
 import ConfirmationCard from '../components/planning/ConfirmationCard';
 import VoiceInput from '../components/planning/VoiceInput';
@@ -16,6 +17,7 @@ import { extractPlanningInput } from '../services/ai/aiService';
 import { extractLocationSuggestion } from '../services/ai/extraction';
 import { formatSchedule, getFoodOptions, getMissingInfoMessage, getProgress, getQuestion, getRetryMessage, isPlanComplete } from '../services/ai/conversation';
 import { getSellerFoods, saveSellingPlan } from '../services/planningService';
+import { getSellerSetup, hasSetup, malaysiaToday, type SellerSetup } from '../services/sellingSetupService';
 import type { SellerFood } from '../types/database';
 import type { FoodOption, FoodSelection, PlanningDraft, PlanningStep, SellingLocation, SellingSchedule } from '../types/planning';
 
@@ -50,6 +52,7 @@ export default function Planning() {
   const [pending, setPending] = useState<PendingConfirmation | null>(null);
   const [messages, setMessages] = useState<ChatLine[]>([]);
   const [sellerFoods, setSellerFoods] = useState<SellerFood[]>([]);
+  const [savedSetup, setSavedSetup] = useState<SellerSetup | null>(null);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -58,6 +61,7 @@ export default function Planning() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
   const [suggestedLocation, setSuggestedLocation] = useState<string | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const nextMessageId = useRef(0);
   const initialised = useRef(false);
 
@@ -86,20 +90,27 @@ export default function Planning() {
       ? 'Hai! Saya akan bantu anda merancang satu sesi jualan ringkas.'
       : 'Hi! I’ll help you set up one simple selling session.');
     appendMessage('assistant', getQuestion('ASK_SCHEDULE', lang, foodOptions, profile));
-  // The welcome must be created once only; later profile/food changes should not repeat it.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // The welcome must be created once only; later profile/food changes should not repeat it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, supabaseConfigured]);
 
   useEffect(() => {
     if (!user) return;
     let isCurrent = true;
-    getSellerFoods(user.id).then(({ data, error }) => {
+    void Promise.all([getSellerFoods(user.id), getSellerSetup(user.id)]).then(([foodsResult, setupResult]) => {
       if (!isCurrent) return;
-      if (error) setFlowNotice('Saved food items could not be loaded. Your onboarding choices are still available.');
-      setSellerFoods(data);
+      if (foodsResult.error) setFlowNotice('Saved food items could not be loaded. Your onboarding choices are still available.');
+      if (setupResult.error) setFlowNotice('Your saved setup could not be loaded. You can still plan this session manually.');
+      setSellerFoods(foodsResult.data);
+      setSavedSetup(setupResult.data);
     });
     return () => { isCurrent = false; };
   }, [user]);
+
+  const useConfirmedSetup = Boolean(
+    profile?.daily_location_confirmed_on === malaysiaToday()
+    && hasSetup(savedSetup)
+  );
 
   async function handleRawAnswer(rawInput: string, fromVoice = false) {
     const value = rawInput.trim();
@@ -128,6 +139,7 @@ export default function Planning() {
       appendMessage('assistant', lang === 'ms' ? 'Saya dengar perkara ini. Sila semak sebelum saya teruskan.' : 'Here’s what I understood. Please check it before I continue.');
     } else if (field === 'location') {
       setPending({ field, value: result.data as SellingLocation });
+      setShowLocationPicker(false);
       setStep('CONFIRM_LOCATION');
       appendMessage('assistant', lang === 'ms' ? 'Sila sahkan lokasi ini.' : 'Please confirm this location.');
     } else {
@@ -150,8 +162,29 @@ export default function Planning() {
     if (!pending) return;
 
     if (pending.field === 'schedule') {
-      setDraft(current => ({ ...current, schedule: pending.value }));
+      const schedule = pending.value;
       setPending(null);
+      if (useConfirmedSetup && savedSetup?.seller_food_id && savedSetup.location_name && savedSetup.food_name && savedSetup.food_category) {
+        setDraft({
+          schedule,
+          location: {
+            location_name: savedSetup.location_name,
+            latitude: savedSetup.latitude,
+            longitude: savedSetup.longitude,
+          },
+          food: {
+            seller_food_id: savedSetup.seller_food_id,
+            food_name: savedSetup.food_name,
+            food_category: savedSetup.food_category,
+          },
+        });
+        setStep('PLAN_READY');
+        appendMessage('assistant', lang === 'ms'
+          ? 'Saya akan menggunakan lokasi dan makanan tersimpan anda untuk sesi ini. Sila semak pelan sebelum menyimpan.'
+          : 'I’ll use your confirmed saved location and food for this session. Please review the plan before saving.');
+        return;
+      }
+      setDraft(current => ({ ...current, schedule }));
       ask('ASK_LOCATION', suggestedLocation ?? '');
       return;
     }
@@ -174,6 +207,7 @@ export default function Planning() {
     if (!pending) return;
     const field = pending.field;
     setPending(null);
+    setShowLocationPicker(false);
     setCustomFoodMode(field === 'food');
     if (field === 'schedule') ask('ASK_SCHEDULE');
     if (field === 'location') ask('ASK_LOCATION');
@@ -181,9 +215,27 @@ export default function Planning() {
     appendMessage('assistant', getRetryMessage(lang));
   }
 
+  function updatePendingLocation(value: { locationName: string; latitude: number | null; longitude: number | null }) {
+    setPending(current => {
+      if (!current || current.field !== 'location') return current;
+      return {
+        field: 'location',
+        value: {
+          location_name: value.locationName.trim() || current.value.location_name,
+          latitude: value.latitude,
+          longitude: value.longitude,
+        },
+      };
+    });
+  }
+
   async function handleSave() {
-    if (!user || !isPlanComplete(draft)) {
-      setSaveError('Please sign in and confirm every detail before saving.');
+    if (!isPlanComplete(draft)) {
+      setSaveError('Please confirm every detail before saving.');
+      return;
+    }
+    if (!user) {
+      setSaveError('This no-sign-in preview keeps your onboarding choices in this browser. Saving selling plans requires a connected Supabase seller account.');
       return;
     }
     setSaveError(null);
@@ -216,10 +268,10 @@ export default function Planning() {
           <span className="brand-name-sm">{t.appName}</span>
         </div>
         <div className="dashboard-header-right">
-          <button className="lang-toggle" onClick={toggleLanguage} title="Toggle language">
+          <button className="lang-toggle" onClick={toggleLanguage} title="Toggle language" aria-label="Toggle application language">
             {lang === 'en' ? '🇬🇧 EN' : '🇲🇾 BM'}
           </button>
-          {user && <Link to="/profile" className="header-profile-link">Profile</Link>}
+          {profile && <Link to="/profile" className="header-profile-link">Profile</Link>}
           {user && <Button variant="ghost" size="sm" onClick={logout}>{t.logout}</Button>}
         </div>
       </header>
@@ -263,7 +315,31 @@ export default function Planning() {
           {step === 'CONFIRM_LOCATION' && pending?.field === 'location' && (
             <ConfirmationCard title={lang === 'ms' ? 'Lokasi jualan' : 'Selling location'} onConfirm={confirmPending} onEdit={editPending}>
               <strong>{pending.value.location_name}</strong>
-              <span className="planning-confirmation-hint">Location can be refined with map coordinates later.</span>
+              {pending.value.latitude !== null && pending.value.longitude !== null ? (
+                <span className="planning-confirmation-hint">Map pin added. Weather can use this location.</span>
+              ) : (
+                <span className="planning-confirmation-hint">A map pin is optional, but lets us check real weather for this session.</span>
+              )}
+              {!showLocationPicker && pending.value.latitude === null && pending.value.longitude === null && (
+                <Button type="button" variant="secondary" size="sm" onClick={() => setShowLocationPicker(true)}>Add map pin</Button>
+              )}
+              {showLocationPicker && (
+                <div className="planning-location-picker">
+                  <MapLocationPicker
+                    value={{
+                      locationName: pending.value.location_name,
+                      latitude: pending.value.latitude,
+                      longitude: pending.value.longitude,
+                      city: profile?.city ?? '',
+                      state: profile?.state ?? '',
+                    }}
+                    onChange={updatePendingLocation}
+                    showAreaFields={false}
+                    preserveLocationName
+                    helpText="Tap your actual selling spot to add coordinates. We will not guess a location if you skip this."
+                  />
+                </div>
+              )}
             </ConfirmationCard>
           )}
 

@@ -16,15 +16,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = useCallback(async () => {
     if (!user) {
       setProfile(null);
+      setProfileError(null);
       return;
     }
-    const { data } = await profileService.getProfile(user.id);
+    const { data, error } = await profileService.getProfile(user.id);
     setProfile(data);
+    setProfileError(error);
   }, [user]);
 
   // Initialize auth state
@@ -58,6 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       refreshProfile();
     } else {
       setProfile(null);
+      setProfileError(null);
     }
   }, [user, refreshProfile]);
 
@@ -79,6 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setSession(null);
     setProfile(null);
+    setProfileError(null);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -91,6 +96,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         session,
         profile,
+        profileError,
         loading,
         supabaseConfigured: isSupabaseConfigured,
         login,

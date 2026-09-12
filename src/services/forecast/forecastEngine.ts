@@ -1,9 +1,9 @@
 // ============================================================
-// Public-benchmark and personal-history demand estimator.
+// Evidence-based demand estimator.
 //
-// Contextual inputs are intentionally not multipliers. The code has no
-// weekend/rain/event/crowd coefficients: those inputs are explanatory until a
-// labelled, held-out model demonstrates a relationship to units sold.
+// Quantities come only from compatible, observed units-sold records. Weather,
+// dates, events, holidays, prices, and public market aggregates remain
+// contextual unless a labelled and evaluated model is introduced later.
 // ============================================================
 
 import type {
@@ -16,7 +16,6 @@ import type {
   NearbyEvent,
   PriceInsight,
   PublicBenchmarkEvidence,
-  TransitContext,
   WeatherForecast,
 } from '../../types/forecast';
 import { calculateConfidence } from './confidence';
@@ -27,7 +26,6 @@ export interface ForecastEngineInput {
   weather: WeatherForecast;
   historicalWeather: HistoricalWeatherContext;
   calendarContext: CalendarContext;
-  transitContext: TransitContext;
   events: NearbyEvent[];
   eventsAvailability: 'available' | 'unavailable';
   priceInsight: PriceInsight;
@@ -36,6 +34,7 @@ export interface ForecastEngineInput {
 interface ComparableSelection {
   sessions: HistoricalSession[];
   strategy: string;
+  unit: string | null;
 }
 
 interface EmpiricalSummary {
@@ -51,6 +50,10 @@ function dateAtNoon(value: string): Date {
 
 function normalise(value: string | null): string {
   return (value ?? '').trim().toLocaleLowerCase();
+}
+
+function isGenericUnit(value: string | null): boolean {
+  return ['', 'serving', 'servings', 'unit', 'units', 'other'].includes(normalise(value));
 }
 
 function average(values: number[]): number {
@@ -80,25 +83,55 @@ function newestFirst(left: HistoricalSession, right: HistoricalSession): number 
   return right.selling_date.localeCompare(left.selling_date);
 }
 
+function sameTimeWindow(session: HistoricalSession, target: ForecastPlanContext): boolean {
+  if (!target.plan.start_time || !target.plan.end_time || !session.start_time || !session.end_time) return false;
+  return session.start_time === target.plan.start_time && session.end_time === target.plan.end_time;
+}
+
+function chooseUnitGroup(sessions: HistoricalSession[], targetUnit: string): HistoricalSession[] {
+  if (!isGenericUnit(targetUnit)) {
+    return sessions.filter(session => normalise(session.unit) === normalise(targetUnit));
+  }
+
+  const groups = new Map<string, HistoricalSession[]>();
+  for (const session of sessions) {
+    const unit = normalise(session.unit);
+    if (!unit) continue;
+    const group = groups.get(unit) ?? [];
+    group.push(session);
+    groups.set(unit, group);
+  }
+  return [...groups.values()]
+    .sort((left, right) => right.length - left.length || newestFirst(left[0], right[0]))[0] ?? [];
+}
+
 function selectComparableSessions(history: HistoricalSession[], target: ForecastPlanContext): ComparableSelection {
-  const sameFoodAndUnit = history
-    .filter(session => session.food_id === target.item.food_id && normalise(session.unit) === normalise(target.food.unit))
+  const sameFood = history
+    .filter(session => session.food_id === target.item.food_id && Number.isFinite(session.estimated_sold_quantity) && session.estimated_sold_quantity >= 0)
     .sort(newestFirst);
-  if (sameFoodAndUnit.length === 0) return { sessions: [], strategy: 'No completed sessions for this food and unit yet' };
+  if (sameFood.length === 0) return { sessions: [], strategy: 'No completed sessions for this food yet', unit: null };
+
+  const sameFoodAndUnit = chooseUnitGroup(sameFood, target.food.unit);
+  if (sameFoodAndUnit.length === 0) {
+    return { sessions: [], strategy: 'Completed sessions use a different measurement unit', unit: null };
+  }
 
   const planDay = dateAtNoon(target.plan.plan_date).getDay();
   const sameLocation = sameFoodAndUnit.filter(session => normalise(session.location_name) === normalise(target.plan.location_name));
   const sameLocationAndDay = sameLocation.filter(session => dateAtNoon(session.selling_date).getDay() === planDay);
+  const sameLocationDayAndTime = sameLocationAndDay.filter(session => sameTimeWindow(session, target));
   const sameDay = sameFoodAndUnit.filter(session => dateAtNoon(session.selling_date).getDay() === planDay);
-  const sessions = sameLocationAndDay.length > 0 ? sameLocationAndDay
-    : sameLocation.length > 0 ? sameLocation
-      : sameDay.length > 0 ? sameDay
-        : sameFoodAndUnit;
-  const strategy = sameLocationAndDay.length > 0 ? 'same food, unit, location, and day of week'
-    : sameLocation.length > 0 ? 'same food, unit, and location'
-      : sameDay.length > 0 ? 'same food, unit, and day of week'
-        : 'same food and unit';
-  return { sessions, strategy };
+  const sessions = sameLocationDayAndTime.length > 0 ? sameLocationDayAndTime
+    : sameLocationAndDay.length > 0 ? sameLocationAndDay
+      : sameLocation.length > 0 ? sameLocation
+        : sameDay.length > 0 ? sameDay
+          : sameFoodAndUnit;
+  const strategy = sameLocationDayAndTime.length > 0 ? 'same food, unit, location, day of week, and selling time'
+    : sameLocationAndDay.length > 0 ? 'same food, unit, location, and day of week'
+      : sameLocation.length > 0 ? 'same food, unit, and location'
+        : sameDay.length > 0 ? 'same food, unit, and day of week'
+          : 'same food and unit';
+  return { sessions, strategy, unit: sessions[0]?.unit ?? null };
 }
 
 function roundForUnit(value: number, unit: string): number {
@@ -127,22 +160,39 @@ function missingBenchmark(message: string): PublicBenchmarkEvidence {
   };
 }
 
+function usablePublicSessionBenchmark(benchmark: PublicBenchmarkEvidence): boolean {
+  return benchmark.availability === 'available'
+    && benchmark.quantity_basis === 'per_session'
+    && benchmark.estimate_quantity !== null
+    && benchmark.estimated_min !== null
+    && benchmark.estimated_max !== null
+    && benchmark.sample_size >= 2;
+}
+
 function contextSignals(input: ForecastEngineInput): ForecastSignal[] {
-  const publicBenchmarkSignal: ForecastSignal = input.publicBenchmark.availability === 'available'
+  const publicBenchmarkSignal: ForecastSignal = usablePublicSessionBenchmark(input.publicBenchmark)
     ? {
       kind: 'public_benchmark',
-      label: 'Validated public bazaar benchmark',
+      label: 'Validated public session benchmark',
       availability: 'available',
       role: 'baseline',
       detail: input.publicBenchmark.methodology,
     }
-    : {
-      kind: 'public_benchmark',
-      label: 'Public bazaar benchmark unavailable',
-      availability: 'unavailable',
-      role: 'context_only',
-      detail: input.publicBenchmark.limitation,
-    };
+    : input.publicBenchmark.availability === 'available'
+      ? {
+        kind: 'public_benchmark',
+        label: 'Official public bazaar market context',
+        availability: 'available',
+        role: 'context_only',
+        detail: input.publicBenchmark.limitation,
+      }
+      : {
+        kind: 'public_benchmark',
+        label: 'Public bazaar benchmark unavailable',
+        availability: 'unavailable',
+        role: 'context_only',
+        detail: input.publicBenchmark.limitation,
+      };
   const weatherSignal: ForecastSignal = {
     kind: 'weather_context',
     label: input.weather.availability === 'available' ? 'Future weather forecast' : 'Future weather unavailable',
@@ -177,20 +227,13 @@ function contextSignals(input: ForecastEngineInput): ForecastSignal[] {
     role: 'context_only',
     detail: input.calendarContext.summary,
   };
-  const transitSignal: ForecastSignal = {
-    kind: 'transit_context',
-    label: input.transitContext.availability === 'available' ? 'Verified Rapid Rail activity proxy' : 'Rapid Rail context unavailable',
-    availability: input.transitContext.availability,
-    role: 'context_only',
-    detail: input.transitContext.summary,
-  };
-  return [publicBenchmarkSignal, weatherSignal, historicalWeatherSignal, eventSignal, holidaySignal, transitSignal];
+  return [publicBenchmarkSignal, weatherSignal, historicalWeatherSignal, eventSignal, holidaySignal];
 }
 
-// If a future public source includes true per-session units-sold labels, this
-// precision-weighted update makes personal observations increasingly dominant
-// as their number and precision increase. Current DOSM aggregate records do
-// not have that compatible basis, so this branch is deliberately not used.
+// If a future public source includes true, comparable per-session units-sold
+// labels, this precision-weighted update makes personal observations more
+// influential as their number and precision increase. The imported DOSM
+// bazaar aggregates deliberately never enter this branch.
 function partialPool(publicEstimate: number, publicVariance: number, personal: EmpiricalSummary, personalCount: number): number | null {
   if (!Number.isFinite(publicVariance) || publicVariance <= 0 || personal.variance === null || personal.variance <= 0) return null;
   const publicPrecision = 1 / publicVariance;
@@ -200,24 +243,24 @@ function partialPool(publicEstimate: number, publicVariance: number, personal: E
 }
 
 function factsForPublic(benchmark: PublicBenchmarkEvidence, unit: string): string[] {
-  const facts = [
-    `The selected public scope is ${benchmark.selected_scope ?? 'not specified'} and reports sales value per stall, not food-item units sold.`,
+  return [
+    `${benchmark.sample_size} validated public per-session observation${benchmark.sample_size === 1 ? '' : 's'} support this ${unit} benchmark.`,
     benchmark.methodology,
     benchmark.limitation,
   ];
-  if (benchmark.estimate_quantity !== null) {
-    facts.unshift(`Public revenue-equivalent benchmark: ${benchmark.estimate_quantity} ${unit} for the published bazaar period.`);
-  }
-  return facts;
+}
+
+function resultUnit(input: ForecastEngineInput, comparables: ComparableSelection): string {
+  return comparables.unit ?? input.context.food.unit;
 }
 
 function unavailableResult(input: ForecastEngineInput, comparables: ComparableSelection, signals: ForecastSignal[]): ForecastResult {
-  const lowDataMessage = 'Neither completed comparable selling sessions nor a convertible validated public benchmark is available. Add a real serving price and keep recording check-ins; no quantity was invented.';
+  const lowDataMessage = 'We don\'t have enough comparable selling data to make a reliable quantity recommendation yet. Keep recording prepared and leftover quantities after each session to build a stronger estimate.';
   return {
     is_estimate_available: false,
     source_type: 'insufficient_evidence',
     evidence_level: 'insufficient_evidence',
-    unit: input.context.food.unit,
+    unit: resultUnit(input, comparables),
     baseline_quantity: null,
     estimated_min: null,
     estimated_max: null,
@@ -233,31 +276,32 @@ function unavailableResult(input: ForecastEngineInput, comparables: ComparableSe
     weather: input.weather,
     historical_weather: input.historicalWeather,
     calendar_context: input.calendarContext,
-    transit_context: input.transitContext,
     events: input.events,
     events_availability: input.eventsAvailability,
     price_insight: input.priceInsight,
-    model_name: 'public_benchmark_empirical_estimator',
-    model_version: '2.0.0',
-    methodology: 'No numerical estimate is produced without a compatible empirical basis.',
+    model_name: 'seller_history_evidence_estimator',
+    model_version: '3.0.0',
+    methodology: 'No numerical estimate is produced without compatible observed units-sold evidence.',
   };
 }
 
 export function calculateForecast(input: ForecastEngineInput): ForecastResult {
-  const comparables = selectComparableSessions(input.context.historical_sessions, input.context);
-  const signals = contextSignals(input);
-  const unavailableCount = signals.filter(signal => signal.availability === 'unavailable' && signal.role === 'context_only').length;
   const publicBenchmark = input.publicBenchmark ?? missingBenchmark('Public benchmark input was not supplied.');
+  const normalizedInput = { ...input, publicBenchmark };
+  const comparables = selectComparableSessions(input.context.historical_sessions, input.context);
+  const signals = contextSignals(normalizedInput);
+  const unavailableCount = signals.filter(signal => signal.availability === 'unavailable' && signal.role === 'context_only').length;
+  const unit = resultUnit(normalizedInput, comparables);
 
   if (comparables.sessions.length > 0) {
     const personal = empiricalSummary(comparables.sessions);
     let estimate = personal.mean;
     let strategy = comparables.strategy;
-    let methodology = 'Empirical mean and interquartile range of this seller’s completed comparable sessions. Contextual signals are displayed but do not alter quantity.';
-    let min = personal.q25;
-    let max = personal.q75;
+    let methodology = 'Empirical mean and interquartile range of this seller\'s completed comparable sessions. Contextual signals are displayed but do not alter quantity.';
+    const min = personal.q25;
+    const max = personal.q75;
 
-    if (publicBenchmark.quantity_basis === 'per_session' && publicBenchmark.estimate_quantity !== null && publicBenchmark.population_variance !== null) {
+    if (usablePublicSessionBenchmark(publicBenchmark) && publicBenchmark.population_variance !== null && publicBenchmark.estimate_quantity !== null) {
       const pooled = partialPool(publicBenchmark.estimate_quantity, publicBenchmark.population_variance, personal, comparables.sessions.length);
       if (pooled !== null) {
         estimate = pooled;
@@ -277,21 +321,21 @@ export function calculateForecast(input: ForecastEngineInput): ForecastResult {
       is_estimate_available: true,
       source_type: 'personalized',
       evidence_level: 'personal_observations',
-      unit: input.context.food.unit,
-      baseline_quantity: roundForUnit(personal.mean, input.context.food.unit),
-      estimated_min: roundForUnit(Math.max(0, min), input.context.food.unit),
-      estimated_max: roundForUnit(Math.max(0, max), input.context.food.unit),
-      recommended_quantity: roundForUnit(Math.max(0, estimate), input.context.food.unit),
+      unit,
+      baseline_quantity: roundForUnit(personal.mean, unit),
+      estimated_min: roundForUnit(Math.max(0, min), unit),
+      estimated_max: roundForUnit(Math.max(0, max), unit),
+      recommended_quantity: roundForUnit(Math.max(0, estimate), unit),
       total_adjustment: 0,
       comparable_strategy: strategy,
       comparable_records: comparables.sessions.length,
       confidence: calculateConfidence('personalized', comparables.sessions.length, unavailableCount),
       signals,
       explanation_facts: [
-        `${comparables.sessions.length} completed comparable session${comparables.sessions.length === 1 ? '' : 's'} (${comparables.strategy}) averaged ${roundForUnit(personal.mean, input.context.food.unit)} ${input.context.food.unit}.`,
+        `${comparables.sessions.length} completed comparable session${comparables.sessions.length === 1 ? '' : 's'} (${comparables.strategy}) averaged ${roundForUnit(personal.mean, unit)} ${unit}.`,
         'Prepared quantity, leftovers, and the resulting estimated sold quantity are private seller feedback; they are not shared as public training data.',
-        ...(publicBenchmark.availability === 'available' && publicBenchmark.quantity_basis !== 'per_session'
-          ? ['The public bazaar benchmark is period-level, so it was not blended with per-session seller check-ins.']
+        ...(publicBenchmark.availability === 'available' && !usablePublicSessionBenchmark(publicBenchmark)
+          ? ['Official bazaar market data is shown as context only because it does not contain compatible item-level, per-session units sold.']
           : []),
       ],
       low_data_message: null,
@@ -299,46 +343,44 @@ export function calculateForecast(input: ForecastEngineInput): ForecastResult {
       weather: input.weather,
       historical_weather: input.historicalWeather,
       calendar_context: input.calendarContext,
-      transit_context: input.transitContext,
       events: input.events,
       events_availability: input.eventsAvailability,
       price_insight: input.priceInsight,
-      model_name: 'public_benchmark_empirical_estimator',
-      model_version: '2.0.0',
+      model_name: 'seller_history_evidence_estimator',
+      model_version: '3.0.0',
       methodology,
     };
   }
 
-  if (publicBenchmark.availability === 'available' && publicBenchmark.estimate_quantity !== null) {
+  if (usablePublicSessionBenchmark(publicBenchmark) && publicBenchmark.estimate_quantity !== null && publicBenchmark.estimated_min !== null && publicBenchmark.estimated_max !== null) {
     return {
       is_estimate_available: true,
       source_type: 'public_benchmark',
       evidence_level: 'benchmark_approximation',
-      unit: input.context.food.unit,
-      baseline_quantity: publicBenchmark.estimate_quantity,
-      estimated_min: publicBenchmark.estimated_min,
-      estimated_max: publicBenchmark.estimated_max,
-      recommended_quantity: publicBenchmark.estimate_quantity,
+      unit,
+      baseline_quantity: roundForUnit(publicBenchmark.estimate_quantity, unit),
+      estimated_min: roundForUnit(Math.max(0, publicBenchmark.estimated_min), unit),
+      estimated_max: roundForUnit(Math.max(0, publicBenchmark.estimated_max), unit),
+      recommended_quantity: roundForUnit(Math.max(0, publicBenchmark.estimate_quantity), unit),
       total_adjustment: 0,
-      comparable_strategy: 'validated public market benchmark',
-      comparable_records: 0,
-      confidence: calculateConfidence('public_benchmark', 0, unavailableCount),
+      comparable_strategy: 'validated public per-session benchmark',
+      comparable_records: publicBenchmark.sample_size,
+      confidence: calculateConfidence('public_benchmark', publicBenchmark.sample_size, unavailableCount),
       signals,
-      explanation_facts: factsForPublic(publicBenchmark, input.context.food.unit),
+      explanation_facts: factsForPublic(publicBenchmark, unit),
       low_data_message: null,
       public_benchmark: publicBenchmark,
       weather: input.weather,
       historical_weather: input.historicalWeather,
       calendar_context: input.calendarContext,
-      transit_context: input.transitContext,
       events: input.events,
       events_availability: input.eventsAvailability,
       price_insight: input.priceInsight,
-      model_name: 'public_benchmark_empirical_estimator',
-      model_version: '2.0.0',
+      model_name: 'seller_history_evidence_estimator',
+      model_version: '3.0.0',
       methodology: publicBenchmark.methodology,
     };
   }
 
-  return unavailableResult(input, comparables, signals);
+  return unavailableResult(normalizedInput, comparables, signals);
 }

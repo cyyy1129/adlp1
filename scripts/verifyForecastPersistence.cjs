@@ -80,9 +80,6 @@ const baseResult = {
   calendar_context: {
     availability: 'unavailable', is_public_holiday: null, holiday_name: null, summary: 'Unavailable', source: null, source_url: null,
   },
-  transit_context: {
-    availability: 'unavailable', summary: 'Unavailable', station_name: null, trips: null, source: null, source_url: null,
-  },
   events: [],
   events_availability: 'available',
   price_insight: {
@@ -90,13 +87,13 @@ const baseResult = {
     item_name: null, unit: null, recent_price: null, price_date: null, sample_size: null,
   },
   public_benchmark: {
-    availability: 'available', quantity_basis: 'per_bazaar_period_revenue_equivalent', estimate_quantity: 4200, estimated_min: 3700, estimated_max: 4600,
-    sample_size: 16, population_variance: 250000, selected_scope: 'W.P. Kuala Lumpur', sales_value_per_stall: 33600, persons_engaged_per_stall: 2.9,
-    serving_price: 8, price_basis: 'seller_declared_menu_price', methodology: 'test', limitation: 'test limitation',
+    availability: 'available', quantity_basis: 'not_convertible', estimate_quantity: null, estimated_min: null, estimated_max: null,
+    sample_size: 0, population_variance: null, selected_scope: 'W.P. Kuala Lumpur', sales_value_per_stall: 33600, persons_engaged_per_stall: 2.9,
+    serving_price: null, price_basis: null, methodology: 'test', limitation: 'test limitation',
     sources: [{ source_id: 'dosm', name: 'DOSM', publisher: 'DOSM', source_url: 'https://example.test', license: null, coverage_start: null, coverage_end: null, retrieved_at: null, what_it_measures: 'market benchmark', data_role: 'benchmark' }],
   },
-  model_name: 'public_benchmark_empirical_estimator',
-  model_version: '2.0.0',
+  model_name: 'seller_history_evidence_estimator',
+  model_version: '3.0.0',
   methodology: 'test methodology',
 };
 
@@ -107,7 +104,8 @@ const baseResult = {
     selling_plan_id: 'plan-1', food_id: 'food-1', recommended_qty: 68, min_qty: 65, max_qty: 70,
     confidence: 60, reasoning: baseResult.explanation_facts[0], source: FORECAST_SOURCE,
   });
-  assert.equal(writes.signals.length, 8, 'Forecast, normalized provider/context, and summary signals should persist');
+  assert.equal(writes.signals.length, 7, 'Forecast, normalized provider/context, and summary signals should persist');
+  assert.ok(writes.signals.every(signal => signal.selling_plan_id === 'plan-1'), 'Every forecast signal must use the canonical selling_plan_id field');
   assert.equal(writes.signals[1].signal_type, 'weather_observation');
   assert.deepEqual(writes.signals[1].signal_data, {
     availability: 'available', condition: 'clear', temperature_c: 29, precipitation_probability: 20,
@@ -115,12 +113,11 @@ const baseResult = {
   });
   assert.equal(writes.signals[2].signal_type, 'historical_weather_context');
   assert.equal(writes.signals[3].signal_type, 'holiday_context');
-  assert.equal(writes.signals[4].signal_type, 'transit_context');
-  assert.equal(writes.signals[5].signal_type, 'nearby_event_context');
-  assert.deepEqual(writes.signals[5].signal_data, { availability: 'available', events: [] });
-  assert.equal(writes.signals[6].signal_type, 'price_reference');
-  assert.equal(writes.signals[7].signal_type, 'forecast_summary');
-  assert.equal(writes.signals[7].signal_data.baseline_quantity, 66);
+  assert.equal(writes.signals[4].signal_type, 'nearby_event_context');
+  assert.deepEqual(writes.signals[4].signal_data, { availability: 'available', events: [] });
+  assert.equal(writes.signals[5].signal_type, 'price_reference');
+  assert.equal(writes.signals[6].signal_type, 'forecast_summary');
+  assert.equal(writes.signals[6].signal_data.baseline_quantity, 66);
   assert.equal(writes.evidence.length, 1, 'A separate evidence snapshot must be retained outside external_signals');
   assert.equal(writes.evidence[0].source_type, 'personalized');
 

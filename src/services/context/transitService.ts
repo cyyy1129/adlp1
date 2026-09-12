@@ -8,8 +8,18 @@
 // ============================================================
 
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
-import type { TransitContext } from '../../types/forecast';
 import { normaliseForecastText } from '../forecast/publicBenchmarkService';
+
+// Retained as an unused integration boundary for a future, separately
+// validated use case. It is intentionally no longer part of Demand Estimate.
+interface TransitContext {
+  availability: 'available' | 'unavailable';
+  summary: string;
+  station_name: string | null;
+  trips: number | null;
+  source: string | null;
+  source_url: string | null;
+}
 
 function unavailable(summary: string): TransitContext {
   return { availability: 'unavailable', summary, station_name: null, trips: null, source: null, source_url: null };

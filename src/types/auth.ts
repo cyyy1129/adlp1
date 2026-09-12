@@ -9,6 +9,7 @@ export interface AuthState {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  profileError: string | null;
   loading: boolean;
   error: string | null;
 }
@@ -31,6 +32,7 @@ export interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  profileError: string | null;
   loading: boolean;
   supabaseConfigured: boolean;
   login: (data: LoginData) => Promise<{ error: string | null }>;
