@@ -32,6 +32,10 @@ function percent(value: number): string {
   return `${value > 0 ? '+' : ''}${Math.round(value * 100)}%`;
 }
 
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(value);
+}
+
 export default function ForecastRecommendation() {
   const { planId } = useParams<{ planId: string }>();
   const { user, logout } = useAuth();
@@ -68,6 +72,8 @@ export default function ForecastRecommendation() {
 
       const request = {
         date: contextResult.data.plan.plan_date,
+        start_time: contextResult.data.plan.start_time,
+        end_time: contextResult.data.plan.end_time,
         latitude: contextResult.data.plan.latitude,
         longitude: contextResult.data.plan.longitude,
         location_name: contextResult.data.plan.location_name,
@@ -199,6 +205,14 @@ export default function ForecastRecommendation() {
           <article className="forecast-provider-card">
             <strong>{forecast.weather.condition ? forecast.weather.condition : 'Unavailable'}</strong>
             <p>{forecast.weather.summary}</p>
+            {forecast.weather.availability === 'available' && (
+              <dl className="forecast-data-grid">
+                <div><dt>Temperature</dt><dd>{forecast.weather.temperature_c}°C</dd></div>
+                <div><dt>Rain probability</dt><dd>{forecast.weather.precipitation_probability}%</dd></div>
+                <div><dt>Precipitation</dt><dd>{forecast.weather.precipitation_mm} mm</dd></div>
+                <div><dt>Weather code</dt><dd>{forecast.weather.weather_code}</dd></div>
+              </dl>
+            )}
             {forecast.weather.source && <small>Source: {forecast.weather.source}</small>}
           </article>
         </section>
@@ -212,11 +226,12 @@ export default function ForecastRecommendation() {
                   <strong>{event.name}</strong>
                   <p>{event.distance_km === null ? 'Distance not supplied' : `${event.distance_km} km away`}</p>
                   <small>Source: {event.source}</small>
+                  {event.source_url && <a href={event.source_url} target="_blank" rel="noreferrer">Open event source</a>}
                 </article>
               ))}
             </div>
           ) : (
-            <article className="forecast-provider-card"><strong>{forecast.events_availability === 'unavailable' ? 'Event data unavailable' : 'No nearby events reported'}</strong><p>No event adjustment was applied.</p></article>
+            <article className="forecast-provider-card"><strong>No nearby event data available.</strong><p>No event adjustment was applied.</p></article>
           )}
         </section>
 
@@ -225,6 +240,14 @@ export default function ForecastRecommendation() {
           <article className="forecast-provider-card">
             <strong>{forecast.price_insight.availability === 'available' ? forecast.price_insight.source_name : 'Price reference unavailable'}</strong>
             <p>{forecast.price_insight.summary}</p>
+            {forecast.price_insight.availability === 'available' && forecast.price_insight.item_name && forecast.price_insight.recent_price !== null && (
+              <dl className="forecast-data-grid">
+                <div><dt>Item</dt><dd>{forecast.price_insight.item_name}</dd></div>
+                <div><dt>Recent reference</dt><dd>{formatCurrency(forecast.price_insight.recent_price)}{forecast.price_insight.unit ? ` / ${forecast.price_insight.unit}` : ''}</dd></div>
+                {forecast.price_insight.price_date && <div><dt>Reference date</dt><dd>{forecast.price_insight.price_date}</dd></div>}
+                {forecast.price_insight.sample_size && <div><dt>Observed records</dt><dd>{forecast.price_insight.sample_size}</dd></div>}
+              </dl>
+            )}
             {forecast.price_insight.reference_url && <a href={forecast.price_insight.reference_url} target="_blank" rel="noreferrer">Open reference</a>}
           </article>
         </section>

@@ -1,11 +1,17 @@
 // ============================================================
-// Event abstraction. No configured/reliable source means no events.
+// Event abstraction. There is no stable, documented Malaysia-wide events API
+// that can safely be called from this browser app. A configured server gateway
+// may query an official source such as MyGovEvent or Tourism Malaysia and must
+// return only records it actually received. Without that gateway, this service
+// deliberately returns no event data rather than inventing an event.
 // ============================================================
 
 import type { NearbyEvent } from '../../types/forecast';
 
 export interface EventRequest {
   date: string;
+  start_time: string | null;
+  end_time: string | null;
   latitude: number | null;
   longitude: number | null;
   location_name: string | null;
@@ -23,12 +29,15 @@ export interface EventService {
 function toEvent(value: unknown): NearbyEvent | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
-  if (typeof record.name !== 'string' || typeof record.source !== 'string') return null;
+  const name = typeof record.name === 'string' ? record.name.trim() : '';
+  const source = typeof record.source === 'string' ? record.source.trim() : '';
+  if (!name || !source) return null;
   return {
-    name: record.name,
+    name,
     distance_km: typeof record.distance_km === 'number' ? record.distance_km : null,
     starts_at: typeof record.starts_at === 'string' ? record.starts_at : null,
-    source: record.source,
+    source,
+    source_url: typeof record.source_url === 'string' ? record.source_url : null,
   };
 }
 

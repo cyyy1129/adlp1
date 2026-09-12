@@ -9,11 +9,50 @@ import type { ForecastPlanContext, ForecastResult, HistoricalSession } from '../
 
 export const FORECAST_SOURCE = 'forecast_engine_v1';
 const FORECAST_SUMMARY_SIGNAL = 'forecast_summary';
+const WEATHER_OBSERVATION_SIGNAL = 'weather_observation';
+const EVENT_CONTEXT_SIGNAL = 'nearby_event_context';
+const PRICE_REFERENCE_SIGNAL = 'price_reference';
 
 type ServiceResult<T> = { data: T | null; error: string | null };
 
 function notConfigured<T>(): ServiceResult<T> {
   return { data: null, error: 'Supabase is not configured.' };
+}
+
+function nullableNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function nullableString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function normaliseStoredForecast(result: ForecastResult): ForecastResult {
+  // Forecast summaries created before external-data normalization remain
+  // readable; missing provider fields are shown as unavailable details.
+  const weather = result.weather as ForecastResult['weather'] & Record<string, unknown>;
+  const price = result.price_insight as ForecastResult['price_insight'] & Record<string, unknown>;
+  return {
+    ...result,
+    weather: {
+      ...weather,
+      temperature_c: nullableNumber(weather.temperature_c),
+      precipitation_probability: nullableNumber(weather.precipitation_probability),
+      precipitation_mm: nullableNumber(weather.precipitation_mm),
+      weather_code: nullableNumber(weather.weather_code),
+      period_start: nullableString(weather.period_start),
+      period_end: nullableString(weather.period_end),
+    },
+    events: result.events.map(event => ({ ...event, source_url: nullableString((event as typeof event & Record<string, unknown>).source_url) })),
+    price_insight: {
+      ...price,
+      item_name: nullableString(price.item_name),
+      unit: nullableString(price.unit),
+      recent_price: nullableNumber(price.recent_price),
+      price_date: nullableString(price.price_date),
+      sample_size: nullableNumber(price.sample_size),
+    },
+  };
 }
 
 export async function getForecastPlanContext(userId: string, planId: string): Promise<ServiceResult<ForecastPlanContext>> {
@@ -138,7 +177,7 @@ export async function getSavedForecast(planId: string): Promise<ServiceResult<Fo
   if (!stored || typeof stored !== 'object') return { data: null, error: null };
   const result = stored as ForecastResult;
   if (typeof result.is_estimate_available !== 'boolean' || !Array.isArray(result.signals)) return { data: null, error: null };
-  return { data: result, error: null };
+  return { data: normaliseStoredForecast(result), error: null };
 }
 
 export async function saveForecastResult(planId: string, foodId: string, result: ForecastResult): Promise<ServiceResult<{ recommendationId: string | null }>> {
@@ -171,6 +210,45 @@ export async function saveForecastResult(planId: string, foodId: string, result:
       signal_data: signal,
       source: FORECAST_SOURCE,
     })),
+    {
+      selling_plan_id: planId,
+      signal_type: WEATHER_OBSERVATION_SIGNAL,
+      signal_data: {
+        availability: result.weather.availability,
+        condition: result.weather.condition,
+        temperature_c: result.weather.temperature_c,
+        precipitation_probability: result.weather.precipitation_probability,
+        precipitation_mm: result.weather.precipitation_mm,
+        weather_code: result.weather.weather_code,
+        period_start: result.weather.period_start,
+        period_end: result.weather.period_end,
+        summary: result.weather.summary,
+      },
+      source: result.weather.source ?? FORECAST_SOURCE,
+    },
+    {
+      selling_plan_id: planId,
+      signal_type: EVENT_CONTEXT_SIGNAL,
+      signal_data: {
+        availability: result.events_availability,
+        events: result.events,
+      },
+      source: result.events[0]?.source ?? FORECAST_SOURCE,
+    },
+    {
+      selling_plan_id: planId,
+      signal_type: PRICE_REFERENCE_SIGNAL,
+      signal_data: {
+        availability: result.price_insight.availability,
+        item_name: result.price_insight.item_name,
+        unit: result.price_insight.unit,
+        recent_price: result.price_insight.recent_price,
+        price_date: result.price_insight.price_date,
+        sample_size: result.price_insight.sample_size,
+        summary: result.price_insight.summary,
+      },
+      source: result.price_insight.source_name ?? FORECAST_SOURCE,
+    },
     {
       selling_plan_id: planId,
       signal_type: FORECAST_SUMMARY_SIGNAL,

@@ -6,7 +6,7 @@
 import type { CrowdLevel, SellerFood, SellingItem, SellingPlan } from './database';
 
 export type WeatherCondition = 'rain' | 'clear' | 'hot' | 'other';
-export type DataAvailability = 'available' | 'unavailable' | 'demo';
+export type DataAvailability = 'available' | 'unavailable';
 export type ConfidenceLevel = 'Low' | 'Medium' | 'High';
 
 export interface WeatherForecast {
@@ -14,6 +14,12 @@ export interface WeatherForecast {
   condition: WeatherCondition | null;
   summary: string;
   source: string | null;
+  temperature_c: number | null;
+  precipitation_probability: number | null;
+  precipitation_mm: number | null;
+  weather_code: number | null;
+  period_start: string | null;
+  period_end: string | null;
 }
 
 export interface NearbyEvent {
@@ -21,6 +27,7 @@ export interface NearbyEvent {
   distance_km: number | null;
   starts_at: string | null;
   source: string;
+  source_url: string | null;
 }
 
 export interface PriceInsight {
@@ -28,6 +35,11 @@ export interface PriceInsight {
   summary: string;
   source_name: string | null;
   reference_url: string | null;
+  item_name: string | null;
+  unit: string | null;
+  recent_price: number | null;
+  price_date: string | null;
+  sample_size: number | null;
 }
 
 export interface HistoricalSession {

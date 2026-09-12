@@ -10,7 +10,7 @@ interface ForecastEngineInput {
   context: ForecastPlanContext;
   weather: WeatherForecast;
   events: NearbyEvent[];
-  eventsAvailability: 'available' | 'unavailable' | 'demo';
+  eventsAvailability: 'available' | 'unavailable';
   priceInsight: PriceInsight;
 }
 
@@ -99,7 +99,7 @@ function createWeatherSignal(weather: WeatherForecast): ForecastSignal {
   const adjustment = FORECAST_WEIGHTS.weather[weather.condition];
   return {
     kind: 'weather',
-    label: weather.availability === 'demo' ? `Demo weather: ${weather.condition}` : `Weather: ${weather.condition}`,
+    label: `Weather: ${weather.condition}`,
     adjustment,
     availability: weather.availability,
     detail: weather.summary,

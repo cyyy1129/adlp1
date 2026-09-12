@@ -61,10 +61,17 @@ const baseResult = {
   signals: [{ kind: 'day_of_week', label: 'Weekend session', adjustment: 0.1, availability: 'available', detail: 'test' }],
   explanation_facts: ['3 comparable completed sessions averaged 66 bowls.'],
   low_data_message: null,
-  weather: { availability: 'available', condition: 'clear', summary: 'test', source: 'test' },
+  weather: {
+    availability: 'available', condition: 'clear', summary: 'test', source: 'Open-Meteo Forecast API',
+    temperature_c: 29, precipitation_probability: 20, precipitation_mm: 0, weather_code: 2,
+    period_start: '2026-09-12T17:00', period_end: '2026-09-12T22:00',
+  },
   events: [],
   events_availability: 'available',
-  price_insight: { availability: 'unavailable', summary: 'Price reference unavailable.', source_name: null, reference_url: null },
+  price_insight: {
+    availability: 'unavailable', summary: 'Price reference unavailable.', source_name: null, reference_url: null,
+    item_name: null, unit: null, recent_price: null, price_date: null, sample_size: null,
+  },
 };
 
 (async () => {
@@ -74,9 +81,17 @@ const baseResult = {
     selling_plan_id: 'plan-1', food_id: 'food-1', recommended_qty: 68, min_qty: 65, max_qty: 70,
     confidence: 60, reasoning: baseResult.explanation_facts[0], source: FORECAST_SOURCE,
   });
-  assert.equal(writes.signals.length, 2, 'One structured signal and one forecast summary should persist');
-  assert.equal(writes.signals[1].signal_type, 'forecast_summary');
-  assert.equal(writes.signals[1].signal_data.baseline_quantity, 66);
+  assert.equal(writes.signals.length, 5, 'Forecast, normalized provider, and summary signals should persist');
+  assert.equal(writes.signals[1].signal_type, 'weather_observation');
+  assert.deepEqual(writes.signals[1].signal_data, {
+    availability: 'available', condition: 'clear', temperature_c: 29, precipitation_probability: 20,
+    precipitation_mm: 0, weather_code: 2, period_start: '2026-09-12T17:00', period_end: '2026-09-12T22:00', summary: 'test',
+  });
+  assert.equal(writes.signals[2].signal_type, 'nearby_event_context');
+  assert.deepEqual(writes.signals[2].signal_data, { availability: 'available', events: [] });
+  assert.equal(writes.signals[3].signal_type, 'price_reference');
+  assert.equal(writes.signals[4].signal_type, 'forecast_summary');
+  assert.equal(writes.signals[4].signal_data.baseline_quantity, 66);
 
   const noEstimate = { ...baseResult, is_estimate_available: false, baseline_quantity: null, estimated_min: null, estimated_max: null, recommended_quantity: null };
   const savedNoEstimate = await saveForecastResult('plan-2', 'food-1', noEstimate);

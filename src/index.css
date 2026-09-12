@@ -1624,10 +1624,6 @@ a:hover {
   border-style: dashed;
 }
 
-.forecast-signal-demo b {
-  color: #fcd34d;
-}
-
 .forecast-provider-card {
   padding: var(--space-4);
 }
@@ -1641,6 +1637,33 @@ a:hover {
   display: inline-block;
   margin-top: var(--space-2);
   font-size: var(--font-xs);
+}
+
+.forecast-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.forecast-data-grid > div {
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.forecast-data-grid dt {
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+
+.forecast-data-grid dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  font-size: var(--font-sm);
+  font-weight: 700;
 }
 
 .forecast-disclaimer {
@@ -2021,6 +2044,10 @@ a:hover {
     align-items: flex-start;
     flex-direction: column;
     gap: var(--space-2);
+  }
+
+  .forecast-data-grid {
+    grid-template-columns: 1fr;
   }
 
   .checkin-shell,
