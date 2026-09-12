@@ -222,7 +222,7 @@ export default function Onboarding() {
       console.warn('Onboarding completion warning (bypassed for demo):', err);
     } finally {
       setSaving(false);
-      navigate('/dashboard', { replace: true }); // 🏆 改为直接去 dashboard 或 question
+      navigate('/question?mode=change', { replace: true });
     }
   }
 
