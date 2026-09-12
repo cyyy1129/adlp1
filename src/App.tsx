@@ -11,6 +11,7 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
+import ForecastRecommendation from './pages/ForecastRecommendation';
 
 export default function App() {
   return (
@@ -39,6 +40,15 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/plans/:planId/recommendation"
+              element={
+                <ProtectedRoute>
+                  <ForecastRecommendation />
                 </ProtectedRoute>
               }
             />

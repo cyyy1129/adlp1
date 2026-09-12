@@ -5,6 +5,7 @@
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import ChatMessage from '../components/planning/ChatMessage';
 import ConfirmationCard from '../components/planning/ConfirmationCard';
@@ -306,6 +307,11 @@ export default function Planning() {
               <h2>{lang === 'ms' ? 'Pelan disimpan' : 'Plan saved'}</h2>
               <p>{lang === 'ms' ? 'Sesi jualan anda sedia untuk langkah seterusnya.' : 'Your selling session is ready for the next step.'}</p>
               {savedPlanId && <span className="planning-plan-id">Plan reference: {savedPlanId.slice(0, 8)}</span>}
+              {savedPlanId && (
+                <Link to={`/plans/${savedPlanId}/recommendation`} className="planning-forecast-link">
+                  <Button size="md">View demand estimate</Button>
+                </Link>
+              )}
             </section>
           )}
         </section>

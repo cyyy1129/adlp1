@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test:forecast": "node scripts/verifyForecast.cjs",
+    "test:forecast:persistence": "node scripts/verifyForecastPersistence.cjs",
     "preview": "vite preview"
   },
   "dependencies": {
