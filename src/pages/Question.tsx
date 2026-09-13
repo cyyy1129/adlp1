@@ -143,12 +143,8 @@ export default function Question() {
     navigate('/dashboard', { replace: true });
   }
 
-  const primaryPrompt = changeLocation && canReuseSavedDetails
-    ? 'Where are you selling today? You can also include any change to your food or preparation quantity.'
-    : focusedFirstSetup
-      ? 'Tell me about your first selling session: where you will sell, what food you are selling, and roughly how many portions or packages you plan to prepare.'
-      : 'Tell me where you are selling, what food you are selling, and roughly how many portions or packages you plan to prepare.';
-  const visiblePrompt = hasAnswered && followUp ? followUp : primaryPrompt;
+  const primaryPrompt = changeLocation && canReuseSavedDetails ? 'Where are you selling today? You can also tell me if your food or preparation quantity has changed.' : focusedFirstSetup ? 'Tell me about your selling plan: where you will sell, what food you are selling, and approximately how many portions or packages you plan to prepare. For example: "I’ll sell nasi lemak at Kampung Baru this Saturday and prepare around 100 packs."' : 'Tell me where you are selling, what food you are selling, and approximately how many portions or packages you plan to prepare. For example: "I’ll sell nasi lemak at Kampung Baru this Saturday and prepare around 100 packs."'; const visiblePrompt = hasAnswered && followUp ? followUp : primaryPrompt;
+
 
   return (
     <div className={`question-page ${focusedFirstSetup ? 'question-page-focused' : 'app-page-with-nav'}`}>
