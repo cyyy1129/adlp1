@@ -1,4 +1,4 @@
-# Bazaar Buddy / DemandLens
+# Bleu
 
 Mobile-first selling-plan, check-in, and evidence-based demand-estimation MVP for Malaysian food vendors.
 
