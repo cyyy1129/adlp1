@@ -3,17 +3,15 @@
 // demo badge only; it does not claim measured impact.
 // ============================================================
 
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import Button from '../components/Button';
-import DailyCheckinPanel from '../components/profile/DailyCheckinPanel';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
-import { getDemoSustainabilityProgress, hasDemoSustainabilityBadge } from '../lib/demoMetrics';
 import { updateProfile } from '../services/profileService';
 
-const DEMO_REFERRAL_CODE = 'BLEU-24';
+const DEMO_REFERRAL_CODE = 'BUDDY-24';
 
 const DEMO_CHECKIN_SNAPSHOTS = [
   { date: '12 Sep', prepared: 120, leftover: 8, sold: 112 },
@@ -34,21 +32,13 @@ export default function Profile() {
   const { user, profile, logout, refreshProfile, supabaseConfigured } = useAuth();
   const { lang, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const checkinPlanId = searchParams.get('checkinPlan');
   const [notice, setNotice] = useState<string | null>(null);
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
-  const [showCheckin, setShowCheckin] = useState(Boolean(checkinPlanId));
   const [sameLocationConfirmed, setSameLocationConfirmed] = useState(false);
 
-  const sellerName = `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || profile?.username || 'Bleu seller';
+  const sellerName = `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || profile?.username || 'Bazaar Buddy seller';
   const selectedLanguage = profile?.preferred_language === 'ms' ? 'Bahasa Melayu' : 'English';
-  const sustainabilityProgress = getDemoSustainabilityProgress();
-
-  useEffect(() => {
-    if (checkinPlanId) setShowCheckin(true);
-  }, [checkinPlanId]);
 
   async function handleLanguage() {
     const nextLanguage = lang === 'en' ? 'ms' : 'en';
@@ -90,9 +80,9 @@ export default function Profile() {
   return (
     <div className="profile-page account-page app-page-with-nav">
       <header className="dashboard-header account-header">
-        <button type="button" className="demo-brand" onClick={() => navigate('/dashboard')} aria-label="Back to Bleu dashboard">
-          <span className="demo-brand-mark" aria-hidden="true">BL</span>
-          <span>Bleu</span>
+        <button type="button" className="demo-brand" onClick={() => navigate('/dashboard')} aria-label="Back to Bazaar Buddy dashboard">
+          <span className="demo-brand-mark" aria-hidden="true">BB</span>
+          <span>Bazaar Buddy</span>
         </button>
         <span className="account-header-label">Account</span>
       </header>
@@ -101,14 +91,14 @@ export default function Profile() {
         <section className="account-identity" aria-labelledby="account-title">
           <div className="account-avatar-wrap">
             <div className="account-avatar" aria-hidden="true">{getInitials(profile?.first_name, profile?.last_name, profile?.username)}</div>
-            {hasDemoSustainabilityBadge && <span className="sustainability-badge sustainability-badge-unlocked" title="Sustainability badge unlocked" aria-label="Sustainability badge unlocked">
+            <span className="sustainability-badge" title="Sustainability reward preview" aria-label="Sustainability badge preview">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M19.5 4.5C13.8 4.4 8.6 6.2 6.2 10.3c-1.5 2.6-.8 5.7 1.4 7.4 2.3 1.8 5.5 1.4 7.4-.7 3.1-3.6 3.6-8.7 4.5-12.5Z" strokeLinejoin="round" /><path d="M4 20c3.1-4.3 6.5-7 11.2-9.1" strokeLinecap="round" /></svg>
-            </span>}
+            </span>
           </div>
           <div>
             <span className="demo-data-label">SELLER ACCOUNT</span>
             <h1 id="account-title">{sellerName}</h1>
-            <p>{profile?.email ?? user?.email ?? 'Your Bleu account'}</p>
+            <p>{profile?.email ?? user?.email ?? 'Your Bazaar Buddy account'}</p>
           </div>
         </section>
 
@@ -116,7 +106,11 @@ export default function Profile() {
           <span className="sustainability-card-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M19.5 4.5C13.8 4.4 8.6 6.2 6.2 10.3c-1.5 2.6-.8 5.7 1.4 7.4 2.3 1.8 5.5 1.4 7.4-.7 3.1-3.6 3.6-8.7 4.5-12.5Z" strokeLinejoin="round" /><path d="M4 20c3.1-4.3 6.5-7 11.2-9.1" strokeLinecap="round" /></svg>
           </span>
-          <div><p className="demo-card-kicker">{hasDemoSustainabilityBadge ? 'REWARD UNLOCKED' : 'REWARD PROGRESS'}</p><h2 id="sustainability-title">{hasDemoSustainabilityBadge ? 'Sustainability badge unlocked' : 'Work towards your sustainability badge'}</h2><p>{hasDemoSustainabilityBadge ? `${sustainabilityProgress}% complete in this hardcoded demo. Your badge is now shown on your profile.` : `${sustainabilityProgress}% complete in this hardcoded demo. Reach 100% to show the badge on your profile.`}</p></div>
+          <div>
+            <p className="demo-card-kicker">REWARD PREVIEW</p>
+            <h2 id="sustainability-title">Sustainability badge</h2>
+            <p>100% sustainability congrats badge, get free 5 credits</p>
+          </div>
         </section>
 
         <section className="account-location-prompt" aria-labelledby="same-location-title">
@@ -133,7 +127,6 @@ export default function Profile() {
               <Button size="sm" variant="secondary" onClick={() => navigate('/question?mode=change')}>No, change place</Button>
             </div>
           )}
-          <small>This prompt does not update your saved location.</small>
         </section>
 
         <section className="account-menu" aria-label="Account settings">
@@ -145,9 +138,9 @@ export default function Profile() {
             <span className="account-menu-icon" aria-hidden="true">S</span>
             <div><strong>Summary</strong><small>{showSummary ? 'Hide check-in reflection' : 'View check-in reflection'}</small></div><ArrowIcon />
           </button>
-          <button type="button" className="account-menu-row" onClick={() => setShowCheckin(current => !current)} aria-expanded={showCheckin} aria-controls="daily-checkin">
+          <button type="button" className="account-menu-row" onClick={() => navigate('/question?mode=daily')}>
             <span className="account-menu-icon" aria-hidden="true">D</span>
-            <div><strong>Daily check-in</strong><small>{showCheckin ? 'Hide selling result form' : 'Record a completed selling result'}</small></div><ArrowIcon />
+            <div><strong>Daily check-in</strong><small>Record a completed selling result</small></div><ArrowIcon />
           </button>
           <button type="button" className="account-menu-row" onClick={() => void handleLanguage()} disabled={savingLanguage}>
             <span className="account-menu-icon" aria-hidden="true">A</span>
@@ -166,8 +159,6 @@ export default function Profile() {
             <div><strong>Log out</strong><small>Sign out from this device</small></div><ArrowIcon />
           </button>
         </section>
-
-        {showCheckin && <DailyCheckinPanel planId={checkinPlanId} />}
 
         {showSummary && (
           <section className="account-summary-panel" id="daily-checkin-summary" aria-labelledby="daily-checkin-summary-title">

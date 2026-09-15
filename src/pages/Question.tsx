@@ -117,9 +117,11 @@ export default function Question() {
 
     setSaving(true);
     setError(null);
+
     try {
       if (user && supabaseConfigured) {
-        await saveSellerSetup(user.id, {
+        // 1. We now capture the error returned from your database
+        const { error: saveError } = await saveSellerSetup(user.id, {
           location_name: draft.location_name!,
           latitude: pinnedLocation.name === draft.location_name ? pinnedLocation.latitude : null,
           longitude: pinnedLocation.name === draft.location_name ? pinnedLocation.longitude : null,
@@ -130,19 +132,30 @@ export default function Question() {
           selling_price: draft.selling_price!,
           estimated_cost: draft.estimated_cost!,
         });
+
+        // 2. If the database rejects it, SHOW the error and STOP the redirect
+        if (saveError) {
+          setError(`Save failed: ${saveError}`);
+          setSaving(false);
+          return;
+        }
+
         await refreshProfile();
+      } else {
+        setError("Error: You are not logged in or Supabase is not connected.");
+        setSaving(false);
+        return;
       }
     } catch (err) {
       console.warn('Could not save seller setup', err);
       setError('We could not save your details right now. Please try again.');
-      return;
-    } finally {
       setSaving(false);
+      return;
     }
 
+    // 3. Only redirect to the dashboard if it actually saved successfully!
     navigate('/dashboard', { replace: true });
   }
-
   const primaryPrompt = changeLocation && canReuseSavedDetails ? 'Where are you selling today? You can also tell me if your food or preparation quantity has changed.' : focusedFirstSetup ? 'Tell me about your selling plan: where you will sell, what food you are selling, and approximately how many portions or packages you plan to prepare. For example: "I’ll sell nasi lemak at Kampung Baru this Saturday and prepare around 100 packs."' : 'Tell me where you are selling, what food you are selling, and approximately how many portions or packages you plan to prepare. For example: "I’ll sell nasi lemak at Kampung Baru this Saturday and prepare around 100 packs."'; const visiblePrompt = hasAnswered && followUp ? followUp : primaryPrompt;
 
 

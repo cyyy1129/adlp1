@@ -26,23 +26,46 @@ export default function Dashboard() {
   const sellerName = profile?.first_name?.trim() || profile?.username?.trim() || 'Pak Ali';
   const greeting = profile?.preferred_language === 'ms' ? 'Selamat pagi' : 'Good morning';
   const sustainabilityProgress = getDemoSustainabilityProgress();
+
   const savedBazaar = profile?.default_location_name?.trim() || null;
   const savedFood = profile?.custom_food_name?.trim()
     || profile?.food_categories?.find(category => category !== 'Others')?.trim()
     || null;
-  const sellingLocation = savedBazaar ?? DEMO_WEATHER_CONTEXT.fallbackLocation;
 
+  // --- Dynamic State Variables ---
   const [sellingFood, setSellingFood] = useState(savedFood ?? 'Your food');
+  const [sellingLocation, setSellingLocation] = useState(savedBazaar ?? DEMO_WEATHER_CONTEXT.fallbackLocation);
+  const [prepRange, setPrepRange] = useState<{ min: number; max: number }>({
+    min: DEMO_METRICS.preparationRange.minimum,
+    max: DEMO_METRICS.preparationRange.maximum
+  });
 
+  // --- Fetch exactly matching your sellingSetupService ---
   useEffect(() => {
     if (user) {
       getSellerSetup(user.id).then(({ data }) => {
-        if (data?.food_name) {
-          // Capitalize first letter to make it look nicer e.g. "nasi lemak" -> "Nasi lemak"
-          const name = data.food_name.trim();
-          setSellingFood(name.charAt(0).toUpperCase() + name.slice(1));
+        if (data) {
+          // 1. Update Food Name
+          if (data.food_name) {
+            const name = data.food_name.trim();
+            setSellingFood(name.charAt(0).toUpperCase() + name.slice(1));
+          }
+
+          // 2. Update Location
+          if (data.location_name) {
+            setSellingLocation(data.location_name.trim());
+          }
+
+          // 3. Update Quantity (+/- 10% for the preparation range)
+          if (data.quantity) {
+            const qty = Number(data.quantity);
+            setPrepRange({
+              min: Math.floor(qty * 0.9),
+              max: Math.ceil(qty * 1.1)
+            });
+          }
         }
-      });
+      }).catch(err => console.error("Error fetching setup:", err));
     }
   }, [user]);
 
@@ -79,7 +102,7 @@ export default function Dashboard() {
           <div className="demo-forecast-body">
             <div className="demo-forecast-number">
               <span>Recommended preparation range</span>
-              <strong className="demo-forecast-range-value">{DEMO_METRICS.preparationRange.minimum}-{DEMO_METRICS.preparationRange.maximum}</strong>
+              <strong className="demo-forecast-range-value">{prepRange.min}-{prepRange.max}</strong>
               <b>{DEMO_METRICS.preparationRange.unit}</b>
               <small>Prepare within this range for the session.</small>
             </div>

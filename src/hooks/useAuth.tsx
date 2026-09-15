@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null); // 1. Added this state
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = useCallback(async () => {
@@ -27,7 +27,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     const { data, error } = await profileService.getProfile(user.id);
     setProfile(data);
-    setProfileError(error);
+    // Assuming error comes back as a string or object with a message
+    setProfileError(error ? String(error) : null);
   }, [user]);
 
   // Initialize auth state
@@ -96,7 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         session,
         profile,
-        profileError,
+        profileError, // 2. Added this to the provider value!
         loading,
         supabaseConfigured: isSupabaseConfigured,
         login,
