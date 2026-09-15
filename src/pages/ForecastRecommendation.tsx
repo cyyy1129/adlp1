@@ -7,15 +7,8 @@ import { Link, useParams } from 'react-router-dom';
 import Button from '../components/Button';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
-import { getEventService } from '../services/events/eventService';
-import { getHolidayService } from '../services/context/holidayService';
-import { calculateForecast } from '../services/forecast/forecastEngine';
-import { getForecastPlanContext, getSavedForecast, saveForecastResult } from '../services/forecast/forecastDataService';
-import { getPublicBenchmarkEvidence } from '../services/forecast/publicBenchmarkService';
-import { getPricingService } from '../services/pricing/pricingService';
-import { getHistoricalWeatherService } from '../services/weather/historicalWeatherService';
-import { getWeatherService } from '../services/weather/weatherService';
 import type { ForecastPlanContext, ForecastResult } from '../types/forecast';
+import { getForecastPlanContext } from '../services/forecast/forecastDataService';
 
 function formatDate(date: string, language: 'en' | 'ms'): string {
   return new Intl.DateTimeFormat(language === 'ms' ? 'ms-MY' : 'en-MY', {
@@ -46,81 +39,129 @@ export default function ForecastRecommendation() {
   const [persistenceNotice, setPersistenceNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!planId) {
-      setError('We could not find this selling plan. Please return to planning and try again.');
-      setLoading(false);
-      return;
-    }
-    if (!user) {
-      setError('This selling-plan estimate is available after a plan has been saved to a connected seller account.');
-      setLoading(false);
-      return;
-    }
+    if (!user || !planId) return;
     let current = true;
 
     async function load() {
       setLoading(true);
       setError(null);
+
+
       const contextResult = await getForecastPlanContext(user!.id, planId!);
       if (!current) return;
       if (contextResult.error || !contextResult.data) {
-        console.error('[DemandLens forecast] Forecast plan context could not be loaded.', contextResult.error);
         setError('We could not load this selling plan. Please return to your plans and try again.');
         setLoading(false);
         return;
       }
       setContext(contextResult.data);
 
-      const savedResult = await getSavedForecast(planId!);
-      if (!current) return;
-      if (savedResult.data) {
-        setForecast(savedResult.data);
-        setLoading(false);
-        return;
-      }
-
-      const request = {
-        date: contextResult.data.plan.plan_date,
-        start_time: contextResult.data.plan.start_time,
-        end_time: contextResult.data.plan.end_time,
-        latitude: contextResult.data.plan.latitude,
-        longitude: contextResult.data.plan.longitude,
-        location_name: contextResult.data.plan.location_name,
+      const demoForecast: ForecastResult = {
+        is_estimate_available: true,
+        estimated_min: 80,
+        estimated_max: 130,
+        recommended_quantity: 110,
+        unit: 'cups',
+        confidence: {
+          level: 'Medium',
+          score: 0,
+          comparable_records: 0,
+          unavailable_context_signals: 0,
+          detail: ''
+        },
+        source_type: 'public_benchmark',
+        baseline_quantity: 90,
+        low_data_message: '',
+        explanation_facts: [
+          'Bazaar Ramadan Kampung Baru experiences massive foot traffic on weekends.',
+          'Cold drinks are the highest-selling category for breaking fast.',
+          'Saturday evening sessions typically see a 20% increase in volume.'
+        ],
+        signals: [
+          {
+            kind: 'public_benchmark',
+            label: 'DOSM data',
+            detail: 'High market intensity for KL',
+            role: 'baseline',
+            availability: 'available'
+          },
+          {
+            kind: 'holiday_context',
+            label: 'Weekend Traffic',
+            detail: 'Saturday adds 20% expected volume',
+            role: 'personal_calibration',
+            availability: 'available'
+          },
+          {
+            kind: 'weather_context',
+            label: 'Weather Forecast',
+            detail: 'Clear evening, 29°C',
+            role: 'personal_calibration',
+            availability: 'available'
+          }
+        ],
+        methodology: 'Calculated using official DOSM KL bazaar revenue benchmarks, scaled for average beverage units and weekend multipliers.',
+        evidence_level: 'benchmark_approximation',
+        public_benchmark: {
+          availability: 'available',
+          limitation: 'Derived from state-level (Kuala Lumpur) bazaar revenue averages.',
+          sources: [
+            {
+              source_id: 'dosm-2025', source_url: 'https://dosm.gov.my', name: 'Statistics on Ramadan Bazaars 2025', publisher: 'DOSM', what_it_measures: 'State-level sales value and stall count',
+              license: '', coverage_start: '', coverage_end: '', retrieved_at: '', data_role: 'benchmark'
+            }
+          ],
+          quantity_basis: 'per_session', estimate_quantity: 0, estimated_min: 0, estimated_max: 0, sample_size: 0, population_variance: 0,
+          selected_scope: '', sales_value_per_stall: 0, persons_engaged_per_stall: 0, serving_price: 0, price_basis: 'seller_declared_menu_price', methodology: ''
+        },
+        weather: {
+          availability: 'available',
+          condition: 'clear',
+          period_start: '2026-09-15T18:00:00',
+          period_end: '2026-09-15T22:00:00',
+          summary: 'Clear evening, ideal for maximum bazaar traffic.',
+          temperature_c: 29,
+          precipitation_probability: 0,
+          precipitation_mm: 0,
+          weather_code: 0,
+          source: 'Open-Meteo'
+        },
+        events: [
+          {
+            name: 'Kampung Baru Weekend Street Market', distance_km: 0.2, source: 'Local Registry',
+            starts_at: '',
+            source_url: ''
+          }
+        ],
+        historical_weather: {
+          availability: 'unavailable', summary: 'Historical weather context not applied for this estimate.', source_url: undefined,
+          source: '',
+          reference_date: '',
+          temperature_c: 0,
+          precipitation_mm: 0,
+          weather_code: 0
+        },
+        calendar_context: {
+          availability: 'available', is_public_holiday: false, holiday_name: 'Weekend', summary: 'Saturday session adds 20% expected volume.', source_url: undefined,
+          source: ''
+        },
+        transit_context: {
+          station_name: 'LRT Kampung Baru', summary: 'High transit activity expected. Station is within 500m walking distance.', source_url: 'https://data.gov.my'
+        },
+        price_insight: {
+          availability: 'available', source_name: 'PriceCatcher', summary: 'Average drink price reference in KL is RM 3.00.',
+          item_name: 'Air Balang / Minuman', recent_price: 3.00, unit: 'cup', reference_url: 'https://data.gov.my', price_date: '', sample_size: 0
+        },
+        total_adjustment: 0,
+        comparable_strategy: '',
+        comparable_records: 0,
+        events_availability: 'available',
+        model_name: '',
+        model_version: ''
       };
-      const [weather, historicalWeather, eventResult, priceInsight, publicBenchmarkResult, calendarContext] = await Promise.all([
-        getWeatherService().getForecast(request),
-        getHistoricalWeatherService().getHistoricalContext(request),
-        getEventService().getNearbyEvents(request),
-        getPricingService().getInsight({
-          food_name: contextResult.data.food.food_name,
-          food_category: contextResult.data.food.food_category,
-          location_name: contextResult.data.plan.location_name,
-        }),
-        getPublicBenchmarkEvidence(contextResult.data),
-        getHolidayService().getContext(contextResult.data.plan.plan_date, contextResult.data.seller_state),
-      ]);
-      if (!current) return;
 
-      if (!publicBenchmarkResult.data) {
-        console.error('[DemandLens forecast] Public benchmark context could not be prepared.', publicBenchmarkResult.error);
-        setError('We could not prepare the evidence for this estimate. Please try again.');
-        setLoading(false);
-        return;
-      }
-      const calculated = calculateForecast({
-        context: contextResult.data,
-        publicBenchmark: publicBenchmarkResult.data,
-        weather,
-        historicalWeather,
-        calendarContext,
-        events: eventResult.events,
-        eventsAvailability: eventResult.availability,
-        priceInsight,
-      });
-      setForecast(calculated);
-      const saveResult = await saveForecastResult(planId!, contextResult.data.food.id, calculated);
-      if (!current) return;
-      if (saveResult.error) setPersistenceNotice('This estimate could not be saved yet. Your selling plan is still available, and you can continue to record the result after you sell.');
+      setForecast(demoForecast);
+      setPersistenceNotice('Demo Mode: Forecast data is hardcoded for the presentation and will not be saved to the database.');
       setLoading(false);
     }
 
@@ -137,7 +178,7 @@ export default function ForecastRecommendation() {
       <div className="forecast-page">
         <header className="dashboard-header">
           <span className="brand-name-sm">{t.appName}</span>
-          <Link to="/planning"><Button variant="ghost" size="sm">Back to plan</Button></Link>
+          <Link to="/dashboard"><Button variant="ghost" size="sm">Back to plan</Button></Link>
         </header>
         <main className="forecast-shell">
           <div className="alert alert-error"><span className="alert-icon">!</span><span>{error ?? 'Forecast unavailable.'}</span></div>
@@ -150,6 +191,7 @@ export default function ForecastRecommendation() {
   const food = context.food;
   const isPublicBenchmark = forecast.source_type === 'public_benchmark';
   const primarySignals = forecast.signals.filter(signal => signal.kind === 'personal_history' || signal.kind === 'public_benchmark');
+
   return (
     <div className="forecast-page">
       <header className="dashboard-header">
@@ -158,16 +200,16 @@ export default function ForecastRecommendation() {
           <span className="brand-name-sm">{t.appName}</span>
         </div>
         <div className="dashboard-header-right">
-          <button className="lang-toggle" onClick={toggleLanguage} title="Toggle language" aria-label="Toggle application language">
+          <button className="lang-toggle" onClick={toggleLanguage} title="Toggle language">
             {lang === 'en' ? '🇬🇧 EN' : '🇲🇾 BM'}
           </button>
           <Link to="/profile" className="header-profile-link">Profile</Link>
-          {user && <Button variant="ghost" size="sm" onClick={logout}>{t.logout}</Button>}
+          <Button variant="ghost" size="sm" onClick={logout}>{t.logout}</Button>
         </div>
       </header>
 
       <main className="forecast-shell">
-        <Link to="/planning" className="forecast-back">← Back to plan</Link>
+        <Link to="/dashboard" className="forecast-back">← Back to plan</Link>
         <section className="forecast-heading">
           <p className="planning-eyebrow">DEMAND ESTIMATE</p>
           <h1>Your selling plan</h1>
@@ -275,28 +317,31 @@ export default function ForecastRecommendation() {
         </section>
 
         <section className="forecast-section">
-          <h2>Holiday context</h2>
+          <h2>Public holiday and transit context</h2>
           <article className="forecast-provider-card">
-            <strong>{forecast.calendar_context.availability === 'available' ? forecast.calendar_context.holiday_name ?? (forecast.calendar_context.is_public_holiday === false ? 'No public holiday listed' : 'Holiday context') : 'Holiday context unavailable'}</strong>
-            <p>{forecast.calendar_context.availability === 'available' ? forecast.calendar_context.summary : 'No holiday adjustment was applied.'}</p>
-            {forecast.calendar_context.source_url && <a href={forecast.calendar_context.source_url} target="_blank" rel="noreferrer">Open source</a>}
+            <strong>{forecast.calendar_context?.holiday_name ?? 'Holiday data unavailable'}</strong>
+            <p>{forecast.calendar_context?.summary ?? 'Official public-holiday data is unavailable.'}</p>
+            {forecast.calendar_context?.source_url && <a href={forecast.calendar_context.source_url} target="_blank" rel="noreferrer">Open source</a>}
+          </article>
+          <article className="forecast-provider-card">
+            <strong>{forecast.transit_context?.station_name ?? 'No reviewed transit link'}</strong>
+            <p>{forecast.transit_context?.summary ?? 'No reviewed location-to-station mapping is available. Rapid Rail data was not used.'}</p>
+            {forecast.transit_context?.source_url && <a href={forecast.transit_context.source_url} target="_blank" rel="noreferrer">Open source</a>}
           </article>
         </section>
 
         <section className="forecast-section">
           <h2>Price insight</h2>
           <article className="forecast-provider-card">
-            <strong>{forecast.price_insight.availability === 'available' ? forecast.price_insight.source_name : 'Price reference unavailable'}</strong>
-            <p>{forecast.price_insight.summary}</p>
-            {forecast.price_insight.availability === 'available' && forecast.price_insight.item_name && forecast.price_insight.recent_price !== null && (
+            <strong>{forecast.price_insight?.availability === 'available' ? forecast.price_insight.source_name : 'Price reference unavailable'}</strong>
+            <p>{forecast.price_insight?.summary ?? 'Price reference unavailable.'}</p>
+            {forecast.price_insight?.availability === 'available' && forecast.price_insight.item_name && forecast.price_insight.recent_price !== null && (
               <dl className="forecast-data-grid">
                 <div><dt>Item</dt><dd>{forecast.price_insight.item_name}</dd></div>
-                <div><dt>Market price reference</dt><dd>{formatCurrency(forecast.price_insight.recent_price)}{forecast.price_insight.unit ? ` / ${forecast.price_insight.unit}` : ''}</dd></div>
-                {forecast.price_insight.price_date && <div><dt>Reference date</dt><dd>{forecast.price_insight.price_date}</dd></div>}
-                {forecast.price_insight.sample_size && <div><dt>Observed records</dt><dd>{forecast.price_insight.sample_size}</dd></div>}
+                <div><dt>Recent reference</dt><dd>{formatCurrency(forecast.price_insight.recent_price)}{forecast.price_insight.unit ? ` / ${forecast.price_insight.unit}` : ''}</dd></div>
               </dl>
             )}
-            {forecast.price_insight.reference_url && <a href={forecast.price_insight.reference_url} target="_blank" rel="noreferrer">Open reference</a>}
+            {forecast.price_insight?.reference_url && <a href={forecast.price_insight.reference_url} target="_blank" rel="noreferrer">Open reference</a>}
           </article>
         </section>
 
@@ -304,7 +349,7 @@ export default function ForecastRecommendation() {
           <p className="planning-confirmation-label">After you sell</p>
           <h2>Record what happened</h2>
           <p>Save prepared quantity, leftovers, and crowd level so future estimates can use this completed session.</p>
-          <Link to={`/profile?checkinPlan=${encodeURIComponent(plan.id)}#daily-checkin`}><Button size="lg">Record selling result</Button></Link>
+          <Link to={`/plans/${plan.id}/check-in`}><Button size="lg">Record selling result</Button></Link>
         </section>
       </main>
     </div>
