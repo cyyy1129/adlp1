@@ -4,9 +4,10 @@
 // ============================================================
 
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import Button from '../components/Button';
+import DailyCheckinPanel from '../components/profile/DailyCheckinPanel';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { updateProfile } from '../services/profileService';
@@ -32,10 +33,14 @@ export default function Profile() {
   const { user, profile, logout, refreshProfile, supabaseConfigured } = useAuth();
   const { lang, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [notice, setNotice] = useState<string | null>(null);
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showDailyCheckin, setShowDailyCheckin] = useState(false);
   const [sameLocationConfirmed, setSameLocationConfirmed] = useState(false);
+  const checkinPlanId = searchParams.get('checkinPlan');
+  const dailyCheckinVisible = showDailyCheckin || Boolean(checkinPlanId);
 
   const sellerName = `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || profile?.username || 'Bazaar Buddy seller';
   const selectedLanguage = profile?.preferred_language === 'ms' ? 'Bahasa Melayu' : 'English';
@@ -75,6 +80,20 @@ export default function Profile() {
   function confirmSameLocation() {
     setSameLocationConfirmed(true);
     setNotice('Same location selected for this demo session. Nothing was saved to your account.');
+  }
+
+  function toggleDailyCheckin() {
+    if (!dailyCheckinVisible) {
+      setShowDailyCheckin(true);
+      return;
+    }
+
+    setShowDailyCheckin(false);
+    if (checkinPlanId) {
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete('checkinPlan');
+      setSearchParams(nextSearchParams, { replace: true });
+    }
   }
 
   return (
@@ -138,9 +157,9 @@ export default function Profile() {
             <span className="account-menu-icon" aria-hidden="true">S</span>
             <div><strong>Summary</strong><small>{showSummary ? 'Hide check-in reflection' : 'View check-in reflection'}</small></div><ArrowIcon />
           </button>
-          <button type="button" className="account-menu-row" onClick={() => navigate('/question?mode=daily')}>
+          <button type="button" className="account-menu-row" onClick={toggleDailyCheckin} aria-expanded={dailyCheckinVisible} aria-controls="daily-checkin">
             <span className="account-menu-icon" aria-hidden="true">D</span>
-            <div><strong>Daily check-in</strong><small>Record a completed selling result</small></div><ArrowIcon />
+            <div><strong>Daily check-in</strong><small>{dailyCheckinVisible ? 'Hide selling result form' : 'Record a completed selling result'}</small></div><ArrowIcon />
           </button>
           <button type="button" className="account-menu-row" onClick={() => void handleLanguage()} disabled={savingLanguage}>
             <span className="account-menu-icon" aria-hidden="true">A</span>
@@ -159,6 +178,8 @@ export default function Profile() {
             <div><strong>Log out</strong><small>Sign out from this device</small></div><ArrowIcon />
           </button>
         </section>
+
+        {dailyCheckinVisible && <DailyCheckinPanel planId={checkinPlanId} />}
 
         {showSummary && (
           <section className="account-summary-panel" id="daily-checkin-summary" aria-labelledby="daily-checkin-summary-title">
