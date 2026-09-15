@@ -1,6 +1,10 @@
-# Bazaar Buddy / DemandLens
+<<<<<<< HEAD
+# Bleu
+=======
+# Blue
+>>>>>>> cd9176f (Refine Readme.md)
 
-Mobile-first selling-plan, check-in, and evidence-based demand-estimation MVP for Malaysian food vendors.
+A proprietary application focused on intelligent, personalized demand forecasting and a seamless user experience.
 
 ## ✨ Highlight Features
 
@@ -30,8 +34,3 @@ Since this is a Vite-based project, you can run it locally using standard Node.j
    npm run build
    ```
 
-*(Note: Ensure you have your environment variables set up in a `.env` file based on `.env.example` before running).*
-
-## 📝 License
-
-This project is closed-source and proprietary. All rights reserved.

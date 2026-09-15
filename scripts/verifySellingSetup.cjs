@@ -54,7 +54,7 @@ assert.equal(changedLocation.details.food_name, 'nasi lemak');
 assert.equal(changedLocation.details.location_name, 'SS15');
 assert.deepEqual(changedLocation.missing, []);
 
-const firstVoiceAnswer = extractSellingSetup("I'll sell nasi lemak at Kampung Baru this Saturday. I'll prepare around 100 packs.");
+const firstVoiceAnswer = extractSellingSetup("I'll sell nasi lemak at Kampung Baru this Saturday. I'll prepare around 100 packs, sell each for RM8, and my cost is RM4");
 assert.equal(firstVoiceAnswer.details.location_name, 'Kampung Baru');
 assert.equal(firstVoiceAnswer.details.food_name, 'nasi lemak');
 assert.equal(firstVoiceAnswer.details.quantity, 100);

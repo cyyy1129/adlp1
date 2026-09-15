@@ -2,11 +2,13 @@
 // Visual MVP dashboard. Forecast values are clearly labelled as preview data.
 // ============================================================
 
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import Button from '../components/Button';
 import { useAuth } from '../hooks/useAuth';
 import { DEMO_METRICS, DEMO_WEATHER_CONTEXT, getDemoSustainabilityProgress } from '../lib/demoMetrics';
+import { getSellerSetup } from '../services/sellingSetupService';
 
 const DEMO_HISTORY = [
   { date: '12 Sep', food: 'Nasi ayam', detail: '118 portions sold' },
@@ -19,7 +21,7 @@ function getInitial(name: string): string {
 }
 
 export default function Dashboard() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const sellerName = profile?.first_name?.trim() || profile?.username?.trim() || 'Pak Ali';
   const greeting = profile?.preferred_language === 'ms' ? 'Selamat pagi' : 'Good morning';
@@ -29,7 +31,20 @@ export default function Dashboard() {
     || profile?.food_categories?.find(category => category !== 'Others')?.trim()
     || null;
   const sellingLocation = savedBazaar ?? DEMO_WEATHER_CONTEXT.fallbackLocation;
-  const sellingFood = savedFood ?? 'Your food';
+
+  const [sellingFood, setSellingFood] = useState(savedFood ?? 'Your food');
+
+  useEffect(() => {
+    if (user) {
+      getSellerSetup(user.id).then(({ data }) => {
+        if (data?.food_name) {
+          // Capitalize first letter to make it look nicer e.g. "nasi lemak" -> "Nasi lemak"
+          const name = data.food_name.trim();
+          setSellingFood(name.charAt(0).toUpperCase() + name.slice(1));
+        }
+      });
+    }
+  }, [user]);
 
   return (
     <div className="dashboard-page demo-dashboard-page app-page-with-nav">

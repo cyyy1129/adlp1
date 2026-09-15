@@ -28,7 +28,7 @@ export default function Login() {
       !profile.onboarding_completed
         ? '/onboarding'
         : !profile.voice_setup_completed_at
-          ? '/question'
+          ? '/question?mode=change'
           : '/dashboard'
     } replace />;
   }
@@ -56,8 +56,7 @@ export default function Login() {
       return;
     }
 
-    // Auth state change updates the session; the page-level redirect handles navigation.
-    navigate('/dashboard');
+    navigate('/question?mode=change');
   }
 
   return (

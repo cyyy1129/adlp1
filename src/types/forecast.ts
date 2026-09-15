@@ -143,6 +143,11 @@ export interface ForecastConfidence {
 }
 
 export interface ForecastResult {
+  transit_context: {
+    station_name: string | null;
+    summary: string;
+    source_url: string | null;
+  };
   is_estimate_available: boolean;
   source_type: ForecastSourceType;
   evidence_level: 'benchmark_approximation' | 'personal_observations' | 'insufficient_evidence';

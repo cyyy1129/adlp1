@@ -257,6 +257,11 @@ function resultUnit(input: ForecastEngineInput, comparables: ComparableSelection
 function unavailableResult(input: ForecastEngineInput, comparables: ComparableSelection, signals: ForecastSignal[]): ForecastResult {
   const lowDataMessage = 'We don\'t have enough comparable selling data to make a reliable quantity recommendation yet. Keep recording prepared and leftover quantities after each session to build a stronger estimate.';
   return {
+    transit_context: {
+      station_name: null,
+      summary: 'No reviewed location-to-station mapping is available.',
+      source_url: null,
+    },
     is_estimate_available: false,
     source_type: 'insufficient_evidence',
     evidence_level: 'insufficient_evidence',
@@ -318,6 +323,11 @@ export function calculateForecast(input: ForecastEngineInput): ForecastResult {
       detail: `${comparables.sessions.length} comparable completed session${comparables.sessions.length === 1 ? '' : 's'}; ${strategy}.`,
     });
     return {
+      transit_context: {
+        station_name: null,
+        summary: 'No reviewed location-to-station mapping is available.',
+        source_url: null,
+      },
       is_estimate_available: true,
       source_type: 'personalized',
       evidence_level: 'personal_observations',
@@ -352,20 +362,41 @@ export function calculateForecast(input: ForecastEngineInput): ForecastResult {
     };
   }
 
-  if (usablePublicSessionBenchmark(publicBenchmark) && publicBenchmark.estimate_quantity !== null && publicBenchmark.estimated_min !== null && publicBenchmark.estimated_max !== null) {
+  if (
+    usablePublicSessionBenchmark(publicBenchmark) &&
+    publicBenchmark.estimate_quantity !== null &&
+    publicBenchmark.estimated_min !== null &&
+    publicBenchmark.estimated_max !== null
+  ) {
     return {
       is_estimate_available: true,
       source_type: 'public_benchmark',
       evidence_level: 'benchmark_approximation',
       unit,
-      baseline_quantity: roundForUnit(publicBenchmark.estimate_quantity, unit),
-      estimated_min: roundForUnit(Math.max(0, publicBenchmark.estimated_min), unit),
-      estimated_max: roundForUnit(Math.max(0, publicBenchmark.estimated_max), unit),
-      recommended_quantity: roundForUnit(Math.max(0, publicBenchmark.estimate_quantity), unit),
+      baseline_quantity: roundForUnit(
+        publicBenchmark.estimate_quantity,
+        unit
+      ),
+      estimated_min: roundForUnit(
+        Math.max(0, publicBenchmark.estimated_min),
+        unit
+      ),
+      estimated_max: roundForUnit(
+        Math.max(0, publicBenchmark.estimated_max),
+        unit
+      ),
+      recommended_quantity: roundForUnit(
+        Math.max(0, publicBenchmark.estimate_quantity),
+        unit
+      ),
       total_adjustment: 0,
       comparable_strategy: 'validated public per-session benchmark',
       comparable_records: publicBenchmark.sample_size,
-      confidence: calculateConfidence('public_benchmark', publicBenchmark.sample_size, unavailableCount),
+      confidence: calculateConfidence(
+        'public_benchmark',
+        publicBenchmark.sample_size,
+        unavailableCount
+      ),
       signals,
       explanation_facts: factsForPublic(publicBenchmark, unit),
       low_data_message: null,
@@ -374,6 +405,11 @@ export function calculateForecast(input: ForecastEngineInput): ForecastResult {
       historical_weather: input.historicalWeather,
       calendar_context: input.calendarContext,
       events: input.events,
+      transit_context: {
+        station_name: null,
+        summary: 'No reviewed location-to-station mapping is available.',
+        source_url: null,
+      },
       events_availability: input.eventsAvailability,
       price_insight: input.priceInsight,
       model_name: 'seller_history_evidence_estimator',

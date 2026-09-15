@@ -134,7 +134,7 @@ export default function ForecastRecommendation() {
           }
         ],
         historical_weather: {
-          availability: 'unavailable', summary: 'Historical weather context not applied for this estimate.', source_url: undefined,
+          availability: 'unavailable', summary: 'Historical weather context not applied for this estimate.', source_url: null,
           source: '',
           reference_date: '',
           temperature_c: 0,
@@ -142,7 +142,7 @@ export default function ForecastRecommendation() {
           weather_code: 0
         },
         calendar_context: {
-          availability: 'available', is_public_holiday: false, holiday_name: 'Weekend', summary: 'Saturday session adds 20% expected volume.', source_url: undefined,
+          availability: 'available', is_public_holiday: false, holiday_name: 'Weekend', summary: 'Saturday session adds 20% expected volume.', source_url: null,
           source: ''
         },
         transit_context: {
