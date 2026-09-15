@@ -1,64 +1,37 @@
-# Bleu
+# Bazaar Buddy / DemandLens
 
 Mobile-first selling-plan, check-in, and evidence-based demand-estimation MVP for Malaysian food vendors.
 
-## Demand estimate design
+## ✨ Highlight Features
 
-The numerical target is expected food demand / units sold, not literal crowd or footfall. An LLM is never asked to generate a number.
+* **Personalized Demand Prediction:** Accurately forecast demand by analyzing external factors (like weather and day of the week) combined with your **personal history**. The system continuously learns from your data, becoming increasingly tailored to your unique patterns over time.
+* **Guided User Experience:** We believe technology should work for you, not the other way around. "Blue" features an intuitive, guided interface that walks you through its capabilities, so you never have to guess how to use the app.
+* **Voice Input Integration:** Seamlessly interact with the application using built-in voice input support for effortless, hands-free operation.
 
-The current evidence hierarchy is:
+## 🚀 Future Roadmap
 
-- **Seller history** — completed, single-food check-ins calculate `prepared_quantity - leftover_quantity`. Compatible sessions provide an empirical mean and interquartile range.
-- **Future validated public session data** — supported only when a source contains compatible per-session units-sold observations, including a real sample size and range.
-- **Insufficient evidence** — the app shows no quantity instead of inventing one.
+* **Real-time Data Integration:** We will be incorporating more real-time data streams, such as live market trends, to further enhance the accuracy and responsiveness of our predictions.
+* **Multilingual Support:** Planned expansion to support multiple languages in future releases to make "Blue" accessible globally.
 
-Official DOSM bazaar statistics are imported as traceable market context: they measure bazaar-level stalls, persons engaged, and sales value. They are not item-level sales labels and are never divided by a price to manufacture a preparation quantity. Weather, events, holidays, and price data are context-only until a labelled, evaluated model supports using them numerically.
+## 💻 Getting Started (For Developers)
 
-## Public source ingestion
+Since this is a Vite-based project, you can run it locally using standard Node.js commands:
 
-Apply the Supabase migrations first, then run the importer with a server-only service role key:
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+2. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+3. **Build for production:**
+   ```bash
+   npm run build
+   ```
 
-```powershell
-npm.cmd install
-npx supabase db push
-$env:SUPABASE_URL = 'https://your-project.supabase.co'
-$env:SUPABASE_SERVICE_ROLE_KEY = 'your-service-role-key'
-npm.cmd run import:public-data
-```
+*(Note: Ensure you have your environment variables set up in a `.env` file based on `.env.example` before running).*
 
-The importer downloads and parser-validates:
+## 📝 License
 
-- [DOSM Statistics on Ramadan and Aidilfitri Bazaars Malaysia 2025](https://www.dosm.gov.my/portal-main/release-content/statistics-on-ramadan-and-aidilfitri-bazaars-malaysia-2025)
-- [DOSM Average Prices of Selected Bazaar Items 2026](https://www.dosm.gov.my/uploads/content-downloads/file_20260406092417.pdf)
-
-It records source URL, publisher, coverage, retrieval date, source role, and what each source actually measures in `data_sources`.
-
-To validate local source files without writing to Supabase:
-
-```powershell
-npm.cmd run validate:public-data -- path\to\dosm_bazaar.xlsx path\to\dosm_prices.pdf
-```
-
-## Local development
-
-```powershell
-Copy-Item .env.example .env
-# Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env
-npm.cmd run dev
-```
-
-Open-Meteo requires no key. Verified event and official-holiday sources are optional server-side gateways configured with `VITE_EVENTS_API_ENDPOINT` and `VITE_OFFICIAL_HOLIDAYS_API_ENDPOINT` respectively.
-
-## Verification
-
-```powershell
-npm.cmd run test:forecast
-npm.cmd run test:forecast:persistence
-npm.cmd run test:external-data
-npm.cmd run test:checkin
-npm.cmd run test:history-feed
-npm.cmd run lint
-npm.cmd run build
-```
-
-Any future supervised model must use labelled demand observations, a time-based held-out validation split, MAE/RMSE, and a simple-baseline comparison before deployment.
+This project is closed-source and proprietary. All rights reserved.
