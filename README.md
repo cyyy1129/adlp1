@@ -1,8 +1,6 @@
-<<<<<<< HEAD
-# Bleu
-=======
-# Blue
->>>>>>> cd9176f (Refine Readme.md)
+
+# Project Name : Blue
+Deployed live URL: [adlp1.vercel.app](https://adlp1.vercel.app/)
 
 A proprietary application focused on intelligent, personalized demand forecasting and a seamless user experience.
 
